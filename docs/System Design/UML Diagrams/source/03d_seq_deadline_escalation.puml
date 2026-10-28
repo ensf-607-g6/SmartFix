@@ -1,0 +1,55 @@
+@startuml seq4_deadline_escalation
+!include style.iuml
+skinparam PackageBackgroundColor #FFFFFF
+autonumber "<b>0."
+skinparam maxMessageSize 260
+title SD-4  Escalate a missed deadline (FR-11)
+
+participant "Deadline\nScheduler" as SCH
+database "PostgreSQL" as DB
+queue "RabbitMQ\nsmartfix.events" as MQ
+participant "Priority\nmodule" as PRI
+participant "Notifications\nmodule" as NOT
+participant "Ollama" as AI
+participant "Operator\nDashboard" as DASH
+actor Supervisor
+actor Resident
+
+loop every few minutes
+  SCH -> DB : SELECT work orders WHERE status IN (assigned, in_progress)\nAND escalated_at IS NULL AND deadline_at < now()\n(partial index idx_work_orders_deadline)
+  DB --> SCH : overdue work orders
+  loop for each overdue work order
+    SCH -> DB : UPDATE work_orders SET escalated_at = now();\nINSERT events(DeadlineMissed)
+    SCH -> MQ : publish DeadlineMissed
+  end
+end
+
+par Priority queue
+  MQ -> PRI : DeadlineMissed
+  activate PRI
+  PRI -> DB : INSERT processed_events (priority, event_id)\nON CONFLICT DO NOTHING
+  PRI -> DB : issue -> escalated, is_escalated = true;\nINSERT priority_history(reason = deadline_missed)
+  note right of DB
+    v_issue_queue adds escalation_boost (1000),
+    so the issue moves to the top of the queue
+  end note
+  PRI -> MQ : publish IssuePrioritized
+  deactivate PRI
+  MQ -> DASH : IssuePrioritized
+  DASH -> DASH : escalated pin at the top of the map list
+else Notifications queue
+  MQ -> NOT : DeadlineMissed
+  activate NOT
+  NOT -> DB : look up crews.supervisor_id for the work order
+  NOT -> AI : write alert text
+  NOT -> DB : INSERT notifications (supervisor), (resident)
+  NOT -> Supervisor : "A severity 4 pothole repair is overdue"
+  NOT -> Resident : "Your repair is delayed; it has been escalated"
+  deactivate NOT
+end
+
+note over SCH, PRI
+  The issue keeps its normal path afterwards: escalated -> assigned (operator reassigns),
+  in_progress or completed. is_escalated stays true until the issue is closed.
+end note
+@enduml

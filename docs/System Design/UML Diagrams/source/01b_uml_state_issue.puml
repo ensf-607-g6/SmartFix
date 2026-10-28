@@ -1,0 +1,49 @@
+@startuml uml_state_issue
+!include style.iuml
+skinparam nodesep 50
+skinparam ranksep 55
+title SmartFix: UML State Machine Diagram (Issue lifecycle)
+
+[*] --> Reported : resident submits report\n/ Reports saves issue, publishes IssueReported
+
+state Reported
+Reported : entry / Validation classifies photo (FR-2)
+Reported --> Reported : IssueNeedsReview\n[confidence low or not infrastructure]\n/ add to operator review list (FR-4)
+Reported --> Validated : IssueValidated\n[model confident, or operator approves]\n<<Validation>>
+Reported --> Merged : IssueDuplicateDetected\n[open issue of same type within 50 m]\n<<Validation>>
+Reported --> Rejected : ReportRejected\n[operator rejects]\n<<Validation>>
+
+Validated --> Prioritized : IssuePrioritized\n/ score = severity + capped duplicate bonus + aging\n<<Priority>>
+Prioritized --> Assigned : WorkOrderCreated\n/ crew matched, deadline set (FR-6)\n<<Work Orders>>
+Assigned --> InProgress : WorkOrderStatusChanged\n[crew started]\n<<Work Orders>>
+InProgress --> Completed : RepairCompleted\n[after photo uploaded]\n<<Work Orders>>
+
+state "In Progress" as InProgress
+
+Completed --> Closed : IssueClosed\n[resident confirms,\nor 7 days with no reply]\n<<Reports>>
+Completed --> Reopened : RepairDisputed\n/ reopen_count + 1 (FR-9)\n<<Reports>>
+Reopened --> Prioritized : IssuePrioritized\n[higher priority]\n<<Priority>>
+
+Prioritized --> Escalated : DeadlineMissed\n<<Priority>>
+Assigned --> Escalated : DeadlineMissed\n<<Priority>>
+InProgress --> Escalated : DeadlineMissed\n<<Priority>>
+Escalated : entry / is_escalated = true,\ntop of queue, alert supervisor (FR-11)
+Escalated --> Assigned : work order reassigned\n<<Work Orders>>
+Escalated --> InProgress : WorkOrderStatusChanged\n<<Work Orders>>
+Escalated --> Completed : RepairCompleted\n<<Work Orders>>
+
+Closed --> [*]
+Merged --> [*]
+Rejected --> [*]
+Merged : the report now belongs\nto the existing issue
+
+legend right
+  <b>Reading the labels</b>
+  Event [guard] / action
+  <<Module>> = the only module allowed to make
+  this transition (status_transitions table, NFR-4)
+  Every transition is written to issue_status_history.
+  Rejected and Merged are terminal states added in the
+  database design so these reports have an end state.
+endlegend
+@enduml

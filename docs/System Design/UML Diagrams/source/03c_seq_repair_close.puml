@@ -1,0 +1,90 @@
+@startuml seq3_repair_close
+!include style.iuml
+skinparam PackageBackgroundColor #FFFFFF
+autonumber "<b>0."
+skinparam maxMessageSize 330
+title SD-3  Repair, verify, then confirm, dispute or auto-close (FR-7 to FR-10, FR-15)
+
+actor "Crew Member" as CREW
+participant "Crew Portal" as CP
+participant "Work Orders\nmodule" as WO
+queue "RabbitMQ\nsmartfix.events" as MQ
+participant "Validation\nmodule" as VAL
+participant "Ollama" as AI
+participant "Notifications\nmodule" as NOT
+participant "Analytics\nmodule" as ANA
+participant "Reports\nmodule" as REP
+participant "Priority\nmodule" as PRI
+database "PostgreSQL" as DB
+actor Resident
+
+== Crew starts the job ==
+CREW -> CP : tap "Start work"
+CP -> WO : PATCH /crew/work-orders/{id} {status: in_progress}
+activate WO
+WO -> DB : work order assigned -> in_progress, started_at;\nissue assigned -> in_progress; INSERT events(WorkOrderStatusChanged)
+WO -> MQ : publish WorkOrderStatusChanged
+deactivate WO
+MQ -> NOT : WorkOrderStatusChanged
+NOT -> Resident : "Work has started" (push)
+
+== Crew finishes the job ==
+CREW -> CP : upload after photo, notes
+CP -> WO : POST /crew/work-orders/{id}/complete (after photo)
+activate WO
+WO -> DB : INSERT photos(kind=after); work order -> completed,\ncompleted_at, after_photo_id; issue -> completed;\nINSERT events(RepairCompleted)
+WO -> MQ : publish RepairCompleted
+deactivate WO
+
+par Validation queue
+  MQ -> VAL : RepairCompleted
+  activate VAL
+  VAL -> AI : compare(before photo, after photo)
+  AI --> VAL : {verdict: repaired | not_repaired | unclear, confidence}
+  VAL -> DB : INSERT repair_verifications
+  deactivate VAL
+else Notifications queue
+  MQ -> NOT : RepairCompleted
+  activate NOT
+  NOT -> DB : INSERT resident_confirmations\n(status = pending, auto_close_at = now + 7 days)
+  NOT -> Resident : "Your pothole was repaired. Is it fixed?" (push)
+  deactivate NOT
+else Analytics queue
+  MQ -> ANA : RepairCompleted
+  ANA -> DB : INSERT repair_metrics (repair_seconds, met_deadline)\n-> v_repair_stats (FR-15)
+end
+
+== Resident answers, or does not ==
+alt resident confirms the fix
+  Resident -> REP : POST /confirmations/{id} {confirmed}
+  activate REP
+  REP -> DB : confirmation -> confirmed, responded_at;\nissue completed -> closed (closed_at set by trigger);\nINSERT events(IssueClosed)
+  REP -> MQ : publish IssueClosed {closed_by: confirmed}
+  REP --> Resident : "Thanks, issue closed"
+  deactivate REP
+else resident disputes
+  Resident -> REP : POST /confirmations/{id} {disputed, reason}
+  activate REP
+  REP -> DB : confirmation -> disputed, dispute_reason;\nissue completed -> reopened, reopen_count + 1;\nINSERT events(RepairDisputed)
+  REP -> MQ : publish RepairDisputed
+  deactivate REP
+  par Priority queue
+    MQ -> PRI : RepairDisputed
+    PRI -> DB : recalculate priority; issue reopened -> prioritized
+    PRI -> MQ : publish IssuePrioritized
+  else Work Orders queue
+    MQ -> WO : RepairDisputed
+    WO -> WO : old order stays completed; next IssuePrioritized\ncreates a new work order (SD-2)
+  end
+else no reply within 7 days
+  REP -> DB : periodic check: resident_confirmations\nWHERE status = pending AND auto_close_at <= now()
+  REP -> DB : confirmation -> auto_closed;\nissue completed -> closed; INSERT events(IssueClosed)
+  REP -> MQ : publish IssueClosed {closed_by: auto_closed}
+  MQ -> NOT : IssueClosed
+  NOT -> Resident : "We closed your report after 7 days with no reply" (push)
+end
+note over MQ, REP
+  The operator dashboard also consumes IssueClosed
+  and removes the pin from the live map.
+end note
+@enduml

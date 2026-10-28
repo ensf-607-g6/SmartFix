@@ -1,0 +1,93 @@
+@startuml uml_component
+!include style.iuml
+skinparam componentStyle uml2
+skinparam nodesep 40
+skinparam ranksep 60
+title SmartFix: UML Component Diagram (event-driven architecture)
+
+package "Client tier  (React + TypeScript, Vite, Tailwind, React-Leaflet)" {
+  component [Resident Web App] as RWA
+  component [Crew Portal] as CPW
+  component [Operator Dashboard] as ODB
+}
+
+component "SmartFix Backend  <<FastAPI application>>" as APP {
+  portin "HTTPS / REST" as pREST
+  portin "WSS" as pWS
+
+  component [Reports\n<<module>>\nresident endpoints] as REP
+  component [Validation\n<<module>>\nreview endpoints] as VAL
+  component [Work Orders\n<<module>>\ncrew portal + reassign endpoints] as WO
+  component [Priority\n<<module>>] as PRI
+  component [Dashboard Query API\n<<read-only router>>] as OPA
+  component [Notifications\n<<module>>] as NOT
+  component [Analytics\n<<module>>] as ANA
+  component [Deadline Scheduler\n<<producer>>] as SCH
+  component [WebSocket Hub] as WSH
+
+  interface "IEventBus\npublish / subscribe" as IBUS
+  interface "IRepository\nSQL" as IREPO
+  interface "IModelClient\nclassify / compare / write" as IAI
+}
+
+component "RabbitMQ  <<event broker, CloudAMQP>>" as MQ {
+  queue "exchange: smartfix.events" as EXC
+  queue "one queue per consumer\n+ dead-letter queue" as QS
+}
+database "PostgreSQL + PostGIS\n<<Supabase>>" as DB
+component "Ollama  <<local AI runtime>>\nQwen3-VL 8B (Gemma 3 4B fallback)" as OLL
+component "Browser Push Service\n<<external, Web Push>>" as PUSH
+
+RWA --> pREST : submit report,\nconfirm / dispute
+CPW --> pREST : status updates,\nafter photo
+ODB --> pREST : review, reassign,\nmap, timeline
+RWA ..> pWS
+ODB ..> pWS
+CPW ..> pWS
+
+pREST --> REP : /reports, /confirmations
+pREST --> VAL : /review
+pREST --> WO : /crew/work-orders,\n/work-orders/{id}/reassign
+pREST --> OPA : /map, /issues/{id}/timeline,\n/stats
+pWS --> WSH
+
+REP ..> IBUS
+SCH ..> IBUS
+VAL ..> IBUS
+PRI ..> IBUS
+WO ..> IBUS
+NOT ..> IBUS
+ANA ..> IBUS
+WSH ..> IBUS : subscribes\n(map, status pages)
+IBUS -- MQ : AMQP\n(aio-pika)
+EXC -> QS
+
+OPA ..> IREPO : read views
+REP ..> IREPO
+VAL ..> IREPO
+PRI ..> IREPO
+WO ..> IREPO
+NOT ..> IREPO
+ANA ..> IREPO
+IREPO -- DB : SQL
+
+VAL ..> IAI
+NOT ..> IAI
+IAI -- OLL : HTTP :11434
+
+NOT --> PUSH : push message
+
+note right of MQ
+  Modules never call each other.
+  Each consumer has its own durable queue;
+  an event that fails 3 times goes to the
+  dead-letter queue (NFR-3, NFR-8).
+end note
+note bottom of OPA
+  Each module serves only the endpoints for the
+  status changes it owns (NFR-4): an operator's
+  review goes to Validation, crew updates and
+  reassignment go to Work Orders. The dashboard
+  router only reads views (v_operator_map, ...).
+end note
+@enduml

@@ -1,0 +1,83 @@
+@startuml seq1_submit_validate
+!include style.iuml
+skinparam PackageBackgroundColor #FFFFFF
+autonumber "<b>0."
+skinparam maxMessageSize 260
+title SD-1  Submit a report and validate it (FR-1 to FR-4, NFR-1, NFR-4)
+
+actor Resident
+participant "Resident\nWeb App" as UI
+participant "Reports\nmodule" as REP
+database "PostgreSQL\n+ PostGIS" as DB
+queue "RabbitMQ\nsmartfix.events" as MQ
+participant "Validation\nmodule" as VAL
+participant "Ollama\nQwen3-VL 8B" as AI
+actor "City Operator" as OP
+
+Resident -> UI : take photo, drop pin,\npick category, add description
+UI -> REP : POST /reports (photo, lat/lng, category, text)
+activate REP
+REP -> DB : BEGIN; INSERT photos, issues(status=reported),\nreports, events(IssueReported); COMMIT
+note right of DB : event row is committed\nbefore it is published
+REP -> MQ : publish IssueReported
+REP --> UI : 202 Accepted {report_id, issue_id}
+deactivate REP
+UI --> Resident : "Report received"
+note over Resident, UI : the resident does not wait for the AI
+
+MQ -> VAL : deliver IssueReported (validation queue)
+activate VAL
+VAL -> DB : INSERT processed_events (validation, event_id)\nON CONFLICT DO NOTHING
+alt 0 rows inserted (event already handled)
+  VAL -> MQ : ack, skip
+else first delivery
+  VAL -> AI : classify(photo, description)
+  activate AI
+  AI --> VAL : {problem_type, severity 1-5,\nconfidence, is_infrastructure}
+  deactivate AI
+  VAL -> DB : INSERT validations (latency_ms for NFR-1)
+  VAL -> DB : find_nearby_open_issues(location, type)\n(ST_DWithin 50 m)
+  DB --> VAL : candidate issues, nearest first
+
+  alt confidence low OR photo is not infrastructure
+    VAL -> DB : UPDATE reports SET status = needs_review;\nINSERT review_queue; INSERT events(IssueNeedsReview)
+    VAL -> MQ : publish IssueNeedsReview
+    MQ -> OP : review list updates (dashboard, WebSocket)
+    ... operator opens the review list (separate request) ...
+    OP -> VAL : POST /review/{id} {approve | reject}
+    alt operator approves
+      VAL -> DB : review_queue.decision = approved;\nissue reported -> validated; INSERT events(IssueValidated)
+      VAL -> MQ : publish IssueValidated
+    else operator rejects
+      VAL -> DB : review_queue.decision = rejected;\nissue reported -> rejected; INSERT events(ReportRejected)
+      VAL -> MQ : publish ReportRejected
+    end
+
+  else candidate found
+    VAL -> AI : compare(new report, candidate issue)
+    AI --> VAL : {is_match, confidence}
+    VAL -> DB : INSERT duplicate_checks
+    alt same problem
+      VAL -> DB : re-point report to existing issue;\nnew issue reported -> merged;\nINSERT events(IssueDuplicateDetected)
+      VAL -> MQ : publish IssueDuplicateDetected
+    else different problem
+      VAL -> DB : issue reported -> validated, severity set;\nINSERT events(IssueValidated)
+      VAL -> MQ : publish IssueValidated
+    end
+
+  else no candidate, model confident
+    VAL -> DB : issue reported -> validated, severity set;\nINSERT events(IssueValidated)
+    VAL -> MQ : publish IssueValidated
+  end
+  VAL -> MQ : ack
+end
+deactivate VAL
+
+note over MQ, VAL
+  Priority and Notifications consume IssueValidated and
+  IssueDuplicateDetected next (see SD-2). Notifications tells the
+  resident about ReportRejected; the dashboard drops it from the review list.
+  If the handler throws, RabbitMQ redelivers; after 3 failures
+  the message goes to the dead-letter queue (NFR-3).
+end note
+@enduml

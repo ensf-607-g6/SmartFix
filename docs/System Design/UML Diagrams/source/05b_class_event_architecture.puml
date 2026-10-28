@@ -1,0 +1,235 @@
+@startuml class_event_architecture
+!include style.iuml
+skinparam nodesep 30
+skinparam ranksep 60
+hide empty members
+title SmartFix: Class Diagram (backend design, event-driven modules)
+
+package "Events (Pydantic models)" {
+  abstract class DomainEvent <<BaseModel>> {
+    + eventId: UUID
+    + eventName: String
+    + issueId: UUID
+    + reportId: UUID
+    + producer: String
+    + actorId: UUID
+    + correlationId: UUID
+    + causationId: UUID
+    + occurredAt: DateTime
+    + toMessage(): bytes
+    + {static} fromMessage(body: bytes): DomainEvent
+  }
+  class IssueReported {
+    + photoId: UUID
+    + location: GeoPoint
+    + problemType: String
+  }
+  class IssueValidated {
+    + problemType: String
+    + severity: int
+    + confidence: Decimal
+    + approvedBy: UUID [0..1]
+  }
+  class IssueDuplicateDetected {
+    + existingIssueId: UUID
+    + distanceM: Decimal
+  }
+  class IssueNeedsReview {
+    + reason: ReviewReason
+    + confidence: Decimal
+  }
+  class IssuePrioritized {
+    + priorityScore: Decimal
+    + reason: String
+  }
+  class WorkOrderCreated {
+    + workOrderId: UUID
+    + crewId: int
+    + deadlineAt: DateTime
+  }
+  class WorkOrderStatusChanged {
+    + workOrderId: UUID
+    + oldStatus: WorkOrderStatus
+    + newStatus: WorkOrderStatus
+  }
+  class RepairCompleted {
+    + workOrderId: UUID
+    + afterPhotoId: UUID
+  }
+  class RepairDisputed {
+    + workOrderId: UUID
+    + disputeReason: String
+  }
+  class DeadlineMissed {
+    + workOrderId: UUID
+    + deadlineAt: DateTime
+  }
+  class IssueClosed {
+    + workOrderId: UUID
+    + closedBy: ConfirmationStatus
+  }
+  class ReportRejected {
+    + reviewId: UUID
+    + reason: ReviewReason
+    + notes: String
+  }
+  DomainEvent <|-- IssueClosed
+  DomainEvent <|-- ReportRejected
+  DomainEvent <|-- IssueReported
+  DomainEvent <|-- IssueValidated
+  DomainEvent <|-- IssueDuplicateDetected
+  DomainEvent <|-- IssueNeedsReview
+  DomainEvent <|-- IssuePrioritized
+  DomainEvent <|-- WorkOrderCreated
+  DomainEvent <|-- WorkOrderStatusChanged
+  DomainEvent <|-- RepairCompleted
+  DomainEvent <|-- RepairDisputed
+  DomainEvent <|-- DeadlineMissed
+}
+
+package "Messaging and persistence" {
+  interface EventPublisher {
+    + publish(event: DomainEvent): void
+  }
+  class RabbitMQBus <<aio-pika>> {
+    - connection: Connection
+    - exchange: String = "smartfix.events"
+    - maxAttempts: int = 3
+    + publish(event: DomainEvent): void
+    + subscribe(queue: String, events: List<String>, consumer: EventConsumer): void
+    - deadLetter(message, error: String): void
+  }
+  class EventStore <<repository>> {
+    + save(event: DomainEvent, tx: Transaction): void
+    + tryMarkProcessed(consumer: AppModule, eventId: UUID, tx): Boolean
+    + timeline(issueId: UUID): List<DomainEvent>
+    + recordDeadLetter(eventId: UUID, consumer: AppModule, error: String): void
+  }
+  class Database <<connection pool>> {
+    + transaction(module: AppModule, eventId: UUID): Transaction
+  }
+  EventPublisher <|.. RabbitMQBus
+  EventStore --> Database
+}
+
+package "Modules (consumers)" {
+  abstract class EventConsumer {
+    # name: AppModule
+    # subscriptions: List<String>
+    # bus: EventPublisher
+    # store: EventStore
+    # db: Database
+    + onMessage(body: bytes): void
+    + {abstract} handle(event: DomainEvent, tx: Transaction): void
+  }
+  note right of EventConsumer
+    onMessage() is a template method:
+    parse -> open tx with SET LOCAL app.module
+    -> tryMarkProcessed (skip if false, NFR-4)
+    -> handle() -> commit -> publish new events -> ack.
+    On error: nack; after 3 tries -> dead letter (NFR-3).
+  end note
+  class ValidationModule {
+    - confidenceThreshold: Decimal
+    + handle(event, tx): void
+    + reviewReport(reviewId: UUID, approve: Boolean, operator: UUID): void
+    - classify(report: Report): Classification
+    - findDuplicate(report: Report, c: Classification): Issue [0..1]
+    - verifyRepair(workOrderId: UUID): RepairVerdict
+  }
+  class PriorityModule {
+    + handle(event, tx): void
+    - recalculate(issueId: UUID, reason: String): Decimal
+    - escalate(issueId: UUID): void
+  }
+  class WorkOrdersModule {
+    + handle(event, tx): void
+    + startWork(workOrderId: UUID, crewMember: UUID): void
+    + completeRepair(workOrderId: UUID, afterPhoto: Upload): void
+    + reassign(workOrderId: UUID, crewId: int, operator: UUID): void
+    - matchCrew(issue: Issue): Crew
+    - deadlineFor(severity: int): DateTime
+  }
+  class NotificationsModule {
+    + handle(event, tx): void
+    - recipients(event: DomainEvent): List<User>
+    - compose(event: DomainEvent, audience: UserRole): String
+    - requestConfirmation(workOrderId: UUID): void
+  }
+  class AnalyticsModule {
+    + handle(event, tx): void
+    - recordRepairTime(e: RepairCompleted): void
+  }
+  EventConsumer <|-- ValidationModule
+  EventConsumer <|-- PriorityModule
+  EventConsumer <|-- WorkOrdersModule
+  EventConsumer <|-- NotificationsModule
+  EventConsumer <|-- AnalyticsModule
+}
+
+package "Producers (no queue)" {
+  class ReportsModule <<FastAPI router>> {
+    + submitReport(photo: Upload, lat: float, lng: float, type: String, text: String): ReportAccepted
+    + getMyReports(resident: UUID): List<ReportStatusView>
+    + confirmRepair(confirmationId: UUID): void
+    + disputeRepair(confirmationId: UUID, reason: String): void
+    + autoCloseUnconfirmed(now: DateTime): int
+  }
+  class DeadlineScheduler {
+    - interval: Duration
+    + checkOverdue(now: DateTime): int
+  }
+  class DashboardQueryAPI <<FastAPI router>> {
+    + liveMap(filter: MapFilter): List<MapPin>
+    + reviewList(): List<ReviewItem>
+    + timeline(issueId: UUID): List<TimelineRow>
+    + repairStats(): List<RepairStat>
+  }
+}
+
+package "Infrastructure adapters" {
+  interface ModelClient {
+    + classify(photo: bytes, text: String): Classification
+    + compareReports(a: bytes, b: bytes): DuplicateVerdict
+    + verifyRepair(before: bytes, after: bytes): RepairVerdictResult
+    + writeMessage(prompt: String): String
+  }
+  class OllamaClient {
+    - baseUrl: String = "http://localhost:11434"
+    - model: String = "qwen3-vl:8b"
+    - fallbackModel: String = "gemma3:4b"
+  }
+  class Classification <<value>> {
+    + problemType: String
+    + severity: int
+    + confidence: Decimal
+    + isInfrastructure: Boolean
+  }
+  class WebSocketHub {
+    + connect(user: UUID, socket): void
+    + broadcast(channel: String, update: dict): void
+  }
+  class WebPushSender {
+    + send(sub: PushSubscription, message: String): void
+  }
+  ModelClient <|.. OllamaClient
+  ModelClient ..> Classification : returns
+}
+
+DomainEvent <.. EventPublisher : publishes
+RabbitMQBus "1" o-- "0..*" EventConsumer : delivers to
+EventConsumer --> EventPublisher
+EventConsumer --> EventStore
+ReportsModule --> EventPublisher
+ReportsModule --> EventStore
+DeadlineScheduler --> EventPublisher
+DeadlineScheduler --> EventStore
+ValidationModule --> ModelClient
+NotificationsModule --> ModelClient
+NotificationsModule --> WebPushSender
+NotificationsModule --> WebSocketHub
+WebSocketHub ..> RabbitMQBus : subscribes (map, status pages)
+DashboardQueryAPI --> Database : reads views
+OllamaClient -[hidden]down-> DomainEvent
+Classification -[hidden]down-> DomainEvent
+@enduml

@@ -1,0 +1,277 @@
+@startuml class_domain
+!include style.iuml
+skinparam nodesep 35
+skinparam ranksep 55
+hide empty members
+title SmartFix: Class Diagram (domain model)
+
+abstract class User {
+  - userId: UUID
+  - email: String
+  - passwordHash: String
+  - fullName: String
+  - role: UserRole
+  - isActive: Boolean
+  + login(email: String, password: String): Session
+  + logout(): void
+}
+class Resident {
+  + submitReport(photo: Photo, pin: GeoPoint, type: ProblemType, text: String): Report
+  + trackReports(): List<Report>
+  + confirmRepair(c: ResidentConfirmation): void
+  + disputeRepair(c: ResidentConfirmation, reason: String): void
+}
+class Operator {
+  + viewLiveMap(filter: MapFilter): List<Issue>
+  + reviewReport(item: ReviewItem, approve: Boolean, notes: String): void
+  + reassignWorkOrder(wo: WorkOrder, crew: Crew): void
+  + viewTimeline(issue: Issue): List<Event>
+}
+class CrewMember {
+  + viewAssignedOrders(): List<WorkOrder>
+  + startWork(wo: WorkOrder): void
+  + completeRepair(wo: WorkOrder, afterPhoto: Photo, notes: String): void
+}
+class Supervisor {
+  + receiveEscalation(n: Notification): void
+}
+User <|-- Resident
+User <|-- Operator
+User <|-- CrewMember
+User <|-- Supervisor
+
+class Crew {
+  - crewId: int
+  - name: String
+  - maxActiveOrders: int
+  - isActive: Boolean
+  + activeWorkload(): int
+  + hasCapacity(): Boolean
+  + canHandle(type: ProblemType, area: ServiceArea): Boolean
+}
+class ServiceArea {
+  - areaId: int
+  - name: String
+  - boundary: GeoPolygon
+  + contains(p: GeoPoint): Boolean
+}
+class ProblemType {
+  - problemTypeId: int
+  - code: String
+  - displayName: String
+  - isActive: Boolean
+}
+
+class Issue {
+  - issueId: UUID
+  - status: IssueStatus
+  - location: GeoPoint
+  - addressText: String
+  - severity: int {1..5}
+  - duplicateCount: int
+  - priorityBase: Decimal
+  - isEscalated: Boolean
+  - reopenCount: int
+  - createdAt: DateTime
+  - closedAt: DateTime
+  + addReport(r: Report): void
+  + transitionTo(s: IssueStatus, by: AppModule): void
+  + priorityScore(cfg: PriorityConfig, now: DateTime): Decimal
+  + ageInDays(now: DateTime): Decimal
+  + isOpen(): Boolean
+}
+class Report {
+  - reportId: UUID
+  - location: GeoPoint
+  - description: String
+  - status: ReportStatus
+  - submittedAt: DateTime
+  + needsReview(threshold: Decimal): Boolean
+}
+class Photo {
+  - photoId: UUID
+  - kind: PhotoKind
+  - storagePath: String
+  - mimeType: String
+  - sha256: String
+  - uploadedAt: DateTime
+}
+class Validation {
+  - severity: int
+  - confidence: Decimal
+  - isInfrastructure: Boolean
+  - modelName: String
+  - latencyMs: int
+}
+class DuplicateCheck {
+  - distanceM: Decimal
+  - isMatch: Boolean
+  - confidence: Decimal
+}
+class ReviewItem {
+  - reason: ReviewReason
+  - decision: ReviewDecision
+  - reviewedAt: DateTime
+  - notes: String
+  + approve(by: Operator): void
+  + reject(by: Operator, notes: String): void
+}
+class PriorityRecord {
+  - severityPart: Decimal
+  - duplicatePart: Decimal
+  - totalBase: Decimal
+  - reason: String
+  - calculatedAt: DateTime
+}
+class WorkOrder {
+  - workOrderId: UUID
+  - status: WorkOrderStatus
+  - deadlineAt: DateTime
+  - startedAt: DateTime
+  - completedAt: DateTime
+  - escalatedAt: DateTime
+  - crewNotes: String
+  + start(): void
+  + complete(afterPhoto: Photo): void
+  + isOverdue(now: DateTime): Boolean
+  + reassign(crew: Crew, by: Operator): void
+}
+class WorkOrderAssignment {
+  - reason: String
+  - assignedAt: DateTime
+}
+class RepairVerification {
+  - verdict: RepairVerdict
+  - confidence: Decimal
+  - modelName: String
+}
+class ResidentConfirmation {
+  - status: ConfirmationStatus
+  - requestedAt: DateTime
+  - autoCloseAt: DateTime
+  - respondedAt: DateTime
+  - disputeReason: String
+  + confirm(): void
+  + dispute(reason: String): void
+  + isDue(now: DateTime): Boolean
+}
+class RepairMetric {
+  - repairSeconds: int
+  - metDeadline: Boolean
+}
+class Notification {
+  - message: String
+  - createdAt: DateTime
+  - pushedAt: DateTime
+  - readAt: DateTime
+  + markRead(): void
+}
+class PushSubscription {
+  - endpoint: String
+  - p256dhKey: String
+  - authKey: String
+}
+class Event {
+  - eventId: UUID
+  - eventName: String
+  - producer: String
+  - payload: JSON
+  - correlationId: UUID
+  - occurredAt: DateTime
+}
+class StatusChange {
+  - fromStatus: IssueStatus
+  - toStatus: IssueStatus
+  - module: AppModule
+  - changedAt: DateTime
+}
+class PriorityConfig <<singleton>> {
+  - severityWeight = 10
+  - duplicateBonusEach = 2
+  - duplicateBonusCap = 10
+  - agingPointsPerDay = 1.5
+  - escalationBoost = 1000
+  - duplicateRadiusM = 50
+  - autoCloseDays = 7
+  + basePriority(severity: int, duplicates: int): Decimal
+}
+class SeveritySLA {
+  - severity: int
+  - deadlineHours: int
+}
+
+package "Enumerations (attribute types)" {
+enum IssueStatus {
+  REPORTED
+  VALIDATED
+  PRIORITIZED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+  REOPENED
+  ESCALATED
+  REJECTED
+  MERGED
+}
+enum WorkOrderStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+enum ConfirmationStatus {
+  PENDING
+  CONFIRMED
+  DISPUTED
+  AUTO_CLOSED
+}
+enum ReportStatus {
+  SUBMITTED
+  VALIDATED
+  DUPLICATE
+  NEEDS_REVIEW
+  REJECTED
+}
+}
+
+' ---- people and crews
+Resident "1" -- "0..*" Report : submits >
+Crew "0..1" o-- "1..*" CrewMember : members
+Supervisor "0..1" -- "0..*" Crew : supervises >
+Crew "0..*" -- "1..*" ProblemType : specialises in >
+Crew "0..*" -- "1..*" ServiceArea : serves >
+User "1" *-- "0..*" PushSubscription
+User "1" -- "0..*" Notification : receives >
+
+' ---- reports and issues
+Issue "1" o-- "1..*" Report : groups
+Report "1" *-- "1" Photo : evidence
+Report "1" *-- "1..*" Validation : model runs
+Report "1" *-- "0..*" DuplicateCheck
+DuplicateCheck "0..*" -- "1" Issue : candidate >
+Report "1" -- "0..1" ReviewItem : flagged as >
+Operator "0..1" -- "0..*" ReviewItem : decides >
+Issue "0..*" -- "1" ProblemType : classified as >
+Issue "0..*" -- "0..1" ServiceArea : located in >
+Issue "0..*" -- "0..1" Issue : mergedInto >
+
+' ---- priority and repair
+Issue "1" *-- "0..*" PriorityRecord : score history
+Issue "1" -- "0..*" WorkOrder : repaired by >
+WorkOrder "0..*" -- "1" Crew : assigned to >
+WorkOrder "1" *-- "1..*" WorkOrderAssignment : assignment log
+WorkOrder "1" -- "0..1" Photo : after photo >
+WorkOrder "1" *-- "0..1" RepairVerification
+WorkOrder "1" *-- "0..1" ResidentConfirmation
+WorkOrder "1" -- "0..1" RepairMetric : measured by >
+Resident "1" -- "0..*" ResidentConfirmation : responds >
+
+' ---- history
+Issue "1" *-- "0..*" StatusChange : status log
+Issue "1" -- "0..*" Event : timeline >
+Event "0..1" -- "0..*" Notification : produces >
+
+Issue ..> PriorityConfig : uses
+WorkOrder ..> SeveritySLA : deadline from
+@enduml

@@ -1,0 +1,58 @@
+@startuml uml_deployment
+!include style.iuml
+skinparam nodesep 50
+skinparam ranksep 60
+title SmartFix: UML Deployment Diagram
+
+node "User device\n<<mobile or desktop browser>>" as DEV {
+  artifact "SmartFix SPA\n(resident / crew / operator views)" as SPA_RT
+}
+
+node "Vercel\n<<static hosting, CDN>>" as VER {
+  artifact "React + TypeScript build\n(Vite, Tailwind, React-Leaflet)" as SPA
+}
+
+node "Cloudflare\n<<edge>>" as CF {
+  component "Cloudflare Tunnel\n(public HTTPS / WSS URL)" as TUN
+}
+
+node "Team member machine\n<<device>>" as HOST {
+  node "Python 3 runtime\n<<execution environment>>" as PY {
+    artifact "smartfix-backend\n(FastAPI + Uvicorn)\nReports, Validation, Priority,\nWork Orders, Notifications,\nAnalytics, Scheduler, WebSocket Hub" as BE
+  }
+  node "Ollama\n<<execution environment>>" as OL {
+    artifact "qwen3-vl:8b" as M1
+    artifact "gemma3:4b (fallback)" as M2
+  }
+  component "cloudflared\n(tunnel agent)" as CFD
+}
+
+node "CloudAMQP\n<<cloud, free tier>>" as AMQP {
+  component "RabbitMQ\nexchange smartfix.events\nper-module queues + DLQ" as RMQ
+}
+
+node "Supabase\n<<cloud>>" as SUPA {
+  database "PostgreSQL 15+\n+ PostGIS" as PG
+  component "Storage\n(report and after photos)" as ST
+}
+
+node "GitHub\n<<CI>>" as GH {
+  component "Actions: Pytest + Playwright\non every pull request" as CI
+}
+
+DEV --> VER : HTTPS (load app)
+DEV --> TUN : HTTPS REST + WSS
+TUN <--> CFD : outbound tunnel
+CFD --> BE : localhost
+BE --> OL : HTTP localhost:11434\n(photos are analysed only by this local model, NFR-5)
+BE --> RMQ : AMQP over TLS\n(aio-pika)
+BE --> PG : PostgreSQL over TLS
+BE --> ST : HTTPS
+SPA ..> SPA_RT : <<downloaded to>>
+
+
+note bottom of HOST
+  Vercel serves only short requests, so the long-running
+  RabbitMQ consumers and the model run here (proposal, section 3).
+end note
+@enduml

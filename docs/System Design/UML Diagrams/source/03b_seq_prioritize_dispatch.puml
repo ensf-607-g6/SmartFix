@@ -1,0 +1,82 @@
+@startuml seq2_prioritize_dispatch
+!include style.iuml
+skinparam PackageBackgroundColor #FFFFFF
+autonumber "<b>0."
+skinparam maxMessageSize 250
+title SD-2  Prioritise an issue and dispatch a crew (FR-5, FR-6, FR-12, FR-13)
+
+queue "RabbitMQ\nsmartfix.events" as MQ
+participant "Priority\nmodule" as PRI
+participant "Work Orders\nmodule" as WO
+participant "Notifications\nmodule" as NOT
+database "PostgreSQL\n+ PostGIS" as DB
+participant "Ollama" as AI
+participant "WebSocket Hub /\nOperator Dashboard" as DASH
+participant "Deadline\nScheduler" as SCH
+actor Resident
+actor "Crew Member" as CREW
+
+== IssueValidated or IssueDuplicateDetected arrives (from SD-1) ==
+par Priority queue
+  MQ -> PRI : deliver IssueValidated | IssueDuplicateDetected
+  activate PRI
+  PRI -> DB : INSERT processed_events (priority, event_id)\nON CONFLICT DO NOTHING
+  alt IssueDuplicateDetected
+    PRI -> DB : duplicate_count + 1 on the existing issue
+  end
+  PRI -> DB : priority_base = compute_priority_base(severity, duplicate_count)\n(severity x 10 + min(duplicates x 2, 10))
+  PRI -> DB : INSERT priority_history; INSERT events(IssuePrioritized)
+  alt IssueValidated
+    PRI -> DB : issue validated -> prioritized
+  end
+  PRI -> MQ : publish IssuePrioritized
+  deactivate PRI
+else Notifications queue
+  MQ -> NOT : deliver IssueValidated | IssueDuplicateDetected
+  activate NOT
+  NOT -> DB : INSERT processed_events (notifications, event_id)\nON CONFLICT DO NOTHING
+  NOT -> AI : write a short plain-language message for this event
+  AI --> NOT : e.g. "We received your pothole report.\nSeverity 4 of 5." or "This is already being tracked."
+  NOT -> DB : INSERT notifications (user_id, event_id) UNIQUE
+  NOT -> Resident : Web Push + WebSocket status update (FR-12)
+  deactivate NOT
+end
+
+== IssuePrioritized ==
+par Work Orders queue
+  MQ -> WO : deliver IssuePrioritized
+  activate WO
+  WO -> DB : INSERT processed_events (work_orders, event_id)\nON CONFLICT DO NOTHING
+  alt issue has no active work order
+    WO -> DB : pick_crew(problem_type, area)\n(specialty + service area + spare capacity, least loaded)
+    DB --> WO : crew_id
+    WO -> DB : deadline = work_order_deadline(severity)  (severity_sla)
+    WO -> DB : INSERT work_orders, work_order_assignments(auto_match);\nissue prioritized -> assigned; INSERT events(WorkOrderCreated)
+    WO -> MQ : publish WorkOrderCreated
+  else active work order exists (duplicate raised its priority)
+    WO -> WO : queue order changes only;\nno second crew is sent
+  end
+  deactivate WO
+else Operator dashboard
+  MQ -> DASH : IssuePrioritized
+  DASH -> DB : SELECT FROM v_operator_map
+  DASH -> DASH : map pin moves in the queue (< 2 s, NFR-2)
+end
+
+== WorkOrderCreated ==
+par Notifications queue
+  MQ -> NOT : deliver WorkOrderCreated
+  activate NOT
+  NOT -> AI : write message for crew and resident
+  NOT -> DB : INSERT notifications
+  NOT -> CREW : new work order, deadline
+  NOT -> Resident : "A crew has been assigned"
+  deactivate NOT
+else Dashboard
+  MQ -> DASH : WorkOrderCreated
+  DASH -> DASH : show crew and deadline on the map
+else Deadline scheduler
+  MQ -> SCH : WorkOrderCreated
+  SCH -> SCH : watch deadline_at (see SD-4)
+end
+@enduml

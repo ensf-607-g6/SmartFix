@@ -1,0 +1,349 @@
+@startuml er_overview
+!include style.iuml
+skinparam linetype polyline
+skinparam nodesep 45
+skinparam ranksep 70
+hide circle
+hide members
+hide stereotypes
+title SmartFix: Entity Relationship Diagram (overview, attributes hidden)
+package "Users and crews" #EAF0FB {
+  entity "users" as users {
+    * <b>user_id</b> : uuid <<PK>>
+    --
+    * email : text <<UQ>>
+    * password_hash : text
+    * full_name : text
+    * role : user_role
+    * is_active : boolean
+    * created_at : timestamptz
+  }
+  entity "push_subscriptions" as push_subscriptions {
+    * <b>subscription_id</b> : uuid <<PK>>
+    --
+    * user_id : uuid <<FK>>
+    * endpoint : text <<UQ>>
+    * p256dh_key : text
+    * auth_key : text
+    * created_at : timestamptz
+  }
+  entity "crews" as crews {
+    * <b>crew_id</b> : integer <<PK>>
+    --
+    * name : text <<UQ>>
+      supervisor_id : uuid <<FK>>
+    * max_active_orders : smallint
+    * is_active : boolean
+  }
+  entity "crew_members" as crew_members {
+    * <b>crew_id</b> : integer <<PK, FK>>
+    * <b>user_id</b> : uuid <<PK, FK>>
+    --
+  }
+  entity "crew_specialties" as crew_specialties {
+    * <b>crew_id</b> : integer <<PK, FK>>
+    * <b>problem_type_id</b> : smallint <<PK, FK>>
+    --
+  }
+  entity "crew_service_areas" as crew_service_areas {
+    * <b>crew_id</b> : integer <<PK, FK>>
+    * <b>area_id</b> : integer <<PK, FK>>
+    --
+  }
+  entity "service_areas" as service_areas {
+    * <b>area_id</b> : integer <<PK>>
+    --
+    * name : text <<UQ>>
+    * boundary : geography(MultiPolygon)
+  }
+}
+package "Reports and issues" #FFF3B0 {
+  entity "issues" as issues {
+    * <b>issue_id</b> : uuid <<PK>>
+    --
+    * problem_type_id : smallint <<FK>>
+    * status : issue_status
+    * location : geography(Point)
+      address_text : text
+      area_id : integer <<FK>>
+      severity : smallint
+    * duplicate_count : integer
+    * priority_base : numeric(8,2)
+    * is_escalated : boolean
+      merged_into_id : uuid <<FK>>
+    * reopen_count : integer
+    * created_at : timestamptz
+      closed_at : timestamptz
+    * updated_at : timestamptz
+  }
+  entity "reports" as reports {
+    * <b>report_id</b> : uuid <<PK>>
+    --
+    * issue_id : uuid <<FK>>
+    * reporter_id : uuid <<FK>>
+    * problem_type_id : smallint <<FK>>
+    * photo_id : uuid <<FK, UQ>>
+    * location : geography(Point)
+      description : text
+    * status : report_status
+    * submitted_at : timestamptz
+  }
+  entity "photos" as photos {
+    * <b>photo_id</b> : uuid <<PK>>
+    --
+    * kind : photo_kind
+    * storage_path : text <<UQ>>
+    * mime_type : text
+    * sha256 : char(64)
+    * uploaded_by : uuid <<FK>>
+    * uploaded_at : timestamptz
+  }
+  entity "problem_types" as problem_types {
+    * <b>problem_type_id</b> : smallint <<PK>>
+    --
+    * code : text <<UQ>>
+    * display_name : text
+    * is_active : boolean
+  }
+}
+package "AI validation and review" #F6E7FB {
+  entity "validations" as validations {
+    * <b>validation_id</b> : uuid <<PK>>
+    --
+    * report_id : uuid <<FK>>
+      detected_type_id : smallint <<FK>>
+      severity : smallint
+    * confidence : numeric(4,3)
+    * is_infrastructure : boolean
+    * model_name : text
+      raw_output : jsonb
+      latency_ms : integer
+    * created_at : timestamptz
+  }
+  entity "duplicate_checks" as duplicate_checks {
+    * <b>check_id</b> : uuid <<PK>>
+    --
+    * report_id : uuid <<FK>>
+    * candidate_issue_id : uuid <<FK>>
+    * distance_m : numeric(8,2)
+    * is_match : boolean
+    * confidence : numeric(4,3)
+    * model_name : text
+    * created_at : timestamptz
+  }
+  entity "review_queue" as review_queue {
+    * <b>review_id</b> : uuid <<PK>>
+    --
+    * report_id : uuid <<FK, UQ>>
+    * reason : review_reason
+    * decision : review_decision
+      reviewed_by : uuid <<FK>>
+      reviewed_at : timestamptz
+      notes : text
+    * created_at : timestamptz
+  }
+}
+package "Priority, work orders and repair" #E8F4EE {
+  entity "priority_history" as priority_history {
+    * <b>priority_id</b> : bigint <<PK>>
+    --
+    * issue_id : uuid <<FK>>
+    * severity_part : numeric(8,2)
+    * duplicate_part : numeric(8,2)
+    * total_base : numeric(8,2)
+    * reason : text
+    * calculated_at : timestamptz
+  }
+  entity "work_orders" as work_orders {
+    * <b>work_order_id</b> : uuid <<PK>>
+    --
+    * issue_id : uuid <<FK>>
+    * crew_id : integer <<FK>>
+    * status : work_order_status
+    * deadline_at : timestamptz
+    * created_at : timestamptz
+      started_at : timestamptz
+      completed_at : timestamptz
+      escalated_at : timestamptz
+      after_photo_id : uuid <<FK>>
+      crew_notes : text
+  }
+  entity "work_order_assignments" as work_order_assignments {
+    * <b>assignment_id</b> : bigint <<PK>>
+    --
+    * work_order_id : uuid <<FK>>
+    * crew_id : integer <<FK>>
+      assigned_by : uuid <<FK>>
+    * reason : text
+    * assigned_at : timestamptz
+  }
+  entity "repair_verifications" as repair_verifications {
+    * <b>verification_id</b> : uuid <<PK>>
+    --
+    * work_order_id : uuid <<FK, UQ>>
+    * before_photo_id : uuid <<FK>>
+    * after_photo_id : uuid <<FK>>
+    * verdict : repair_verdict
+    * confidence : numeric(4,3)
+    * model_name : text
+    * created_at : timestamptz
+  }
+  entity "resident_confirmations" as resident_confirmations {
+    * <b>confirmation_id</b> : uuid <<PK>>
+    --
+    * work_order_id : uuid <<FK, UQ>>
+    * issue_id : uuid <<FK>>
+    * resident_id : uuid <<FK>>
+    * status : confirmation_status
+    * auto_close_at : timestamptz
+    * requested_at : timestamptz
+      responded_at : timestamptz
+      dispute_reason : text
+  }
+  entity "severity_sla" as severity_sla {
+    * <b>severity</b> : smallint <<PK>>
+    --
+    * deadline_hours : integer
+  }
+  entity "priority_config" as priority_config {
+    * <b>config_id</b> : boolean <<PK>>
+    --
+    * severity_weight : numeric(6,2)
+    * duplicate_bonus_each : numeric(6,2)
+    * duplicate_bonus_cap : numeric(6,2)
+    * aging_points_per_day : numeric(6,2)
+    * escalation_boost : numeric(8,2)
+    * duplicate_radius_m : integer
+    * auto_close_days : integer
+  }
+}
+package "Event backbone" #EFEFEF {
+  entity "events" as events {
+    * <b>event_id</b> : uuid <<PK>>
+    --
+    * event_name : text
+      issue_id : uuid <<FK>>
+      report_id : uuid <<FK>>
+    * producer : text
+      actor_id : uuid <<FK>>
+    * payload : jsonb
+    * correlation_id : uuid
+      causation_id : uuid <<FK>>
+    * occurred_at : timestamptz
+  }
+  entity "processed_events" as processed_events {
+    * <b>consumer</b> : app_module <<PK>>
+    * <b>event_id</b> : uuid <<PK, FK>>
+    --
+    * processed_at : timestamptz
+  }
+  entity "dead_letter_events" as dead_letter_events {
+    * <b>dead_letter_id</b> : bigint <<PK>>
+    --
+      event_id : uuid <<FK>>
+    * consumer : app_module
+    * attempts : smallint
+    * error_message : text
+    * failed_at : timestamptz
+      resolved_at : timestamptz
+  }
+  entity "status_transitions" as status_transitions {
+    * <b>from_status</b> : issue_status <<PK>>
+    * <b>to_status</b> : issue_status <<PK>>
+    --
+    * owner_module : app_module
+  }
+  entity "issue_status_history" as issue_status_history {
+    * <b>history_id</b> : bigint <<PK>>
+    --
+    * issue_id : uuid <<FK>>
+      from_status : issue_status
+    * to_status : issue_status
+      module : app_module
+      event_id : uuid <<FK>>
+    * changed_at : timestamptz
+  }
+}
+package "Notifications and analytics" #FDEBDD {
+  entity "notifications" as notifications {
+    * <b>notification_id</b> : uuid <<PK>>
+    --
+    * user_id : uuid <<FK>>
+      issue_id : uuid <<FK>>
+      event_id : uuid <<FK>>
+    * message : text
+    * created_at : timestamptz
+      pushed_at : timestamptz
+      read_at : timestamptz
+  }
+  entity "repair_metrics" as repair_metrics {
+    * <b>metric_id</b> : bigint <<PK>>
+    --
+    * work_order_id : uuid <<FK, UQ>>
+    * issue_id : uuid <<FK>>
+    * problem_type_id : smallint <<FK>>
+    * severity : smallint
+      area_id : integer <<FK>>
+    * reported_at : timestamptz
+    * completed_at : timestamptz
+    * repair_seconds : integer
+    * met_deadline : boolean
+  }
+}
+crews ||--o{ crew_members : has member
+users ||--o| crew_members : belongs to
+service_areas ||--o{ crew_service_areas : covered by
+crews ||--o{ crew_service_areas : serves
+crews ||--o{ crew_specialties : specialises in
+problem_types ||--o{ crew_specialties : handled by
+users |o--o{ crews : supervises
+events |o--o{ dead_letter_events : failed 3x
+issues ||--o{ duplicate_checks : candidate
+reports ||--o{ duplicate_checks : compared
+users |o--o{ events : triggers
+events |o--o{ events : caused by
+issues |o--o{ events : timeline
+reports |o--o{ events : about
+events |o--o{ issue_status_history : caused
+issues ||--o{ issue_status_history : status log
+service_areas |o--o{ issues : located in
+issues |o--o{ issues : merged into
+problem_types ||--o{ issues : classifies
+events |o--o{ notifications : produces
+issues |o--o{ notifications : about
+users ||--o{ notifications : receives
+users ||--o{ photos : uploads
+issues ||--o{ priority_history : scored
+events ||--o{ processed_events : handled
+users ||--o{ push_subscriptions : subscribes
+service_areas |o--o{ repair_metrics : in area
+issues ||--o{ repair_metrics : measures
+problem_types ||--o{ repair_metrics : of type
+work_orders ||--o| repair_metrics : measured
+photos ||--o{ repair_verifications : after
+photos ||--o{ repair_verifications : before
+work_orders ||--o| repair_verifications : verified by
+issues ||--o{ reports : groups
+photos ||--o| reports : evidence
+problem_types ||--o{ reports : chosen category
+users ||--o{ reports : submits
+issues ||--o{ resident_confirmations : for
+users ||--o{ resident_confirmations : responds
+work_orders ||--o| resident_confirmations : confirm / dispute
+reports ||--o| review_queue : flagged
+users |o--o{ review_queue : reviews
+problem_types |o--o{ validations : detected
+reports ||--o{ validations : model runs
+users |o--o{ work_order_assignments : reassigns
+crews ||--o{ work_order_assignments : given to
+work_orders ||--o{ work_order_assignments : assignment log
+photos |o--o{ work_orders : after photo
+crews ||--o{ work_orders : assigned to
+issues ||--o{ work_orders : repaired by
+legend right
+  <b>Notation</b> (crow's foot)
+  * = NOT NULL   PK = primary key   FK = foreign key   UQ = unique
+  ||  exactly one    |o  zero or one    o{  zero or many (parent end on the left of each line)
+  28 tables. Attributes: full ER diagram and data dictionary
+endlegend
+@enduml
