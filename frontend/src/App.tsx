@@ -4,6 +4,7 @@ import { homeFor, useAuth } from './auth/AuthContext'
 import { AppShell } from './layouts/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { CrewPage } from './pages/crew/CrewPage'
 import { NewReportPage } from './pages/resident/NewReportPage'
 import { MyReportsPage } from './pages/resident/MyReportsPage'
 import { ReportDetailPage } from './pages/resident/ReportDetailPage'
@@ -38,7 +39,7 @@ export function App() {
           />
         </Route>
         <Route element={<RequireRole roles={['crew']} />}>
-          <Route path="/crew" element={<DashboardPage role="crew" />} />
+          <Route path="/crew" element={<CrewPage />} />
         </Route>
         <Route element={<RequireRole roles={['operator', 'supervisor']} />}>
           <Route path="/ops/map" element={<DashboardPage role="operator" />} />

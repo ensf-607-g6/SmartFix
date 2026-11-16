@@ -82,22 +82,43 @@ export function IssueMarker({
   lng,
   severity,
   escalated,
+  selected,
+  onClick,
 }: {
   lat: number
   lng: number
   severity: number | null
   escalated?: boolean
+  selected?: boolean
+  onClick?: () => void
 }) {
   return (
     <CircleMarker
       center={[lat, lng]}
       radius={6 + (severity ?? 1) * 1.6}
       pathOptions={{
-        color: escalated ? '#F6B73C' : '#FFFFFF',
-        weight: escalated ? 4 : 2,
+        color: escalated ? '#F6B73C' : selected ? '#13213C' : '#FFFFFF',
+        weight: escalated || selected ? 4 : 2,
         fillColor: '#13213C',
         fillOpacity: 1,
       }}
+      eventHandlers={onClick ? { click: onClick } : undefined}
     />
   )
+}
+
+export function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap()
+  const key = points.map((point) => point.join(',')).join('|')
+
+  useEffect(() => {
+    if (points.length === 1) map.setView(points[0], 15)
+    else if (points.length > 1) {
+      map.fitBounds(points, { padding: [40, 40], maxZoom: 15 })
+    }
+    // The coordinate key changes when the actual point set changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map])
+
+  return null
 }
