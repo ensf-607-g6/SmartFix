@@ -6,10 +6,12 @@ import {
   CircleMarker,
   Marker,
   TileLayer,
+  Tooltip,
   ZoomControl,
   useMap,
   useMapEvents,
 } from 'react-leaflet'
+import { severityColor } from '../lib/format'
 
 const CALGARY: [number, number] = [51.0447, -114.0719]
 const TILE_URL =
@@ -83,6 +85,7 @@ export function IssueMarker({
   severity,
   escalated,
   selected,
+  label,
   onClick,
 }: {
   lat: number
@@ -90,6 +93,7 @@ export function IssueMarker({
   severity: number | null
   escalated?: boolean
   selected?: boolean
+  label?: string
   onClick?: () => void
 }) {
   return (
@@ -99,11 +103,13 @@ export function IssueMarker({
       pathOptions={{
         color: escalated ? '#F6B73C' : selected ? '#13213C' : '#FFFFFF',
         weight: escalated || selected ? 4 : 2,
-        fillColor: '#13213C',
+        fillColor: severityColor(severity),
         fillOpacity: 1,
       }}
       eventHandlers={onClick ? { click: onClick } : undefined}
-    />
+    >
+      {label && <Tooltip direction="top">{label}</Tooltip>}
+    </CircleMarker>
   )
 }
 
@@ -121,4 +127,25 @@ export function FitBounds({ points }: { points: [number, number][] }) {
   }, [key, map])
 
   return null
+}
+
+export function SeverityLegend() {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-ink-600 shadow-card">
+      <span>Severity</span>
+      {[1, 2, 3, 4, 5].map((value) => (
+        <span key={value} className="flex items-center gap-1">
+          <span
+            className="inline-block rounded-full border border-white"
+            style={{
+              background: severityColor(value),
+              width: 8 + value * 2,
+              height: 8 + value * 2,
+            }}
+          />
+          {value}
+        </span>
+      ))}
+    </div>
+  )
 }
