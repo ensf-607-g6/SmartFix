@@ -10,7 +10,7 @@
   }
   body {
     @apply bg-paper font-sans text-ink-900 antialiased;
-    min-width: 1200px;
+    min-width: 320px;
   }
   ::selection {
     @apply bg-accent-200 text-ink-900;
