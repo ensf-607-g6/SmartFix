@@ -201,6 +201,8 @@ export interface TimelineRow {
   label: string
   source: string
   detail: Record<string, unknown> | null
+  actor_name?: string | null
+  actor_id?: string | null
 }
 
 export interface Crew {

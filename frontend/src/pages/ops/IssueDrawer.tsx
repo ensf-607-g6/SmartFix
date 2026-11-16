@@ -14,6 +14,7 @@ import {
   StatusBadge,
 } from '../../components/ui'
 import { formatDateTime } from '../../lib/format'
+import { IssueTimeline } from './IssueTimeline'
 
 export function IssueDrawer({
   issueId,
@@ -49,6 +50,9 @@ export function IssueDrawer({
       setCrewId('')
       setReason('')
       void queryClient.invalidateQueries({ queryKey: ['issue', issueId] })
+      void queryClient.invalidateQueries({
+        queryKey: ['issue-events', issueId],
+      })
       void queryClient.invalidateQueries({ queryKey: ['map'] })
     },
   })
@@ -184,6 +188,7 @@ export function IssueDrawer({
               </div>
             </section>
           )}
+          <IssueTimeline issueId={detail.issue_id} />
         </div>
       )}
     </Drawer>
