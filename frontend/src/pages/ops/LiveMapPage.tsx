@@ -11,6 +11,7 @@ import type {
   IssueStatus,
   MapIssue,
   ProblemType,
+  RepeatHeatCell,
   Summary,
 } from '../../api/types'
 import { ProblemIcon } from '../../components/ProblemIcon'
@@ -18,6 +19,7 @@ import {
   BaseMap,
   FlyTo,
   IssueMarker,
+  RepeatHeatLayer,
   SeverityLegend,
 } from '../../components/maps'
 import { SeverityPill, StatusBadge } from '../../components/ui'
@@ -42,6 +44,7 @@ export function LiveMapPage() {
   const [types, setTypes] = useState<string[]>([])
   const [severities, setSeverities] = useState<number[]>([])
   const [escalatedOnly, setEscalatedOnly] = useState(false)
+  const [showHeatmap, setShowHeatmap] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [focus, setFocus] = useState<[number, number] | null>(null)
   const { lastEvent } = useLive()
@@ -66,6 +69,12 @@ export function LiveMapPage() {
     queryKey: ['summary'],
     queryFn: () => api.get<Summary>('/dashboard/summary'),
   })
+  const heatmap = useQuery({
+    queryKey: ['repeat-heatmap'],
+    queryFn: () => api.get<RepeatHeatCell[]>('/dashboard/heatmap'),
+    enabled: showHeatmap,
+    refetchInterval: 30000,
+  })
   const { data: problemTypes = [] } = useQuery({
     queryKey: ['problem-types'],
     queryFn: () => api.get<ProblemType[]>('/problem-types'),
@@ -85,6 +94,9 @@ export function LiveMapPage() {
       <div className="relative h-[60vh] min-h-[500px] xl:h-auto">
         <BaseMap>
           <FlyTo position={focus} />
+          {showHeatmap && heatmap.data && (
+            <RepeatHeatLayer cells={heatmap.data} />
+          )}
           {issues.map((i) => (
             <IssueMarker
               key={i.issue_id}
@@ -155,7 +167,38 @@ export function LiveMapPage() {
           )}
         </div>
 
-        <div className="absolute bottom-6 left-4 z-[500] flex items-center gap-2">
+        <div className="absolute bottom-6 left-4 z-[500] flex flex-col items-start gap-2">
+          <button
+            type="button"
+            className={
+              showHeatmap ? 'chip-on shadow-card' : 'chip-off shadow-card'
+            }
+            aria-pressed={showHeatmap}
+            onClick={() => setShowHeatmap((shown) => !shown)}
+          >
+            {showHeatmap ? 'Hide repeat heatmap' : 'Show repeat heatmap'}
+          </button>
+          {showHeatmap && heatmap.isLoading && (
+            <p className="rounded-lg bg-white/95 px-3 py-2 text-xs text-ink-600 shadow-card">
+              Loading repeat reports…
+            </p>
+          )}
+          {showHeatmap && heatmap.isError && (
+            <p className="rounded-lg bg-white/95 px-3 py-2 text-xs text-danger-700 shadow-card">
+              Heatmap unavailable.{' '}
+              <button
+                className="underline"
+                onClick={() => void heatmap.refetch()}
+              >
+                Try again
+              </button>
+            </p>
+          )}
+          {showHeatmap && heatmap.data?.length === 0 && (
+            <p className="rounded-lg bg-white/95 px-3 py-2 text-xs text-ink-600 shadow-card">
+              No repeat-report clusters in the last 30 days.
+            </p>
+          )}
           <SeverityLegend />
         </div>
       </div>
