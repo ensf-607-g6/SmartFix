@@ -252,6 +252,7 @@ export interface Notification {
 }
 
 export interface Stats {
+  by_status?: Record<string, number>
   repair_stats: {
     problem_type: string
     display_name: string
