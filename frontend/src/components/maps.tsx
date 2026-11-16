@@ -14,10 +14,11 @@ import {
 import { severityColor } from '../lib/format'
 
 const CALGARY: [number, number] = [51.0447, -114.0719]
-const TILE_URL =
-  'https://{s}.basemap.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_URL = import.meta.env.DEV
+  ? '/map-tiles/{z}/{x}/{y}.png'
+  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const TILE_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
 const pinIcon = L.divIcon({
   className: '',
