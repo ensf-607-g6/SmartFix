@@ -33,6 +33,7 @@ const REFRESH_KEYS = [
   'my-reports',
   'report',
   'work-orders',
+  'review',
   'summary',
   'notifications',
 ]
