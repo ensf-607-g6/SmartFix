@@ -1,5 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { HeatLayer } from 'leaflet.heat'
 import { useEffect, type ReactNode } from 'react'
 import {
   MapContainer,
@@ -12,6 +13,7 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import { severityColor } from '../lib/format'
+import type { RepeatHeatCell } from '../api/types'
 
 const CALGARY: [number, number] = [51.0447, -114.0719]
 const TILE_URL = import.meta.env.DEV
@@ -112,6 +114,39 @@ export function IssueMarker({
       {label && <Tooltip direction="top">{label}</Tooltip>}
     </CircleMarker>
   )
+}
+
+export function RepeatHeatLayer({ cells }: { cells: RepeatHeatCell[] }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const valid = cells.filter(
+      (cell) =>
+        Number.isFinite(cell.lat) &&
+        Number.isFinite(cell.lng) &&
+        cell.repeat_reports_30d > 0,
+    )
+    const highest = Math.max(1, ...valid.map((cell) => cell.repeat_reports_30d))
+    const points: L.LatLngTuple[] = valid.map((cell) => [
+      cell.lat,
+      cell.lng,
+      cell.repeat_reports_30d / highest,
+    ])
+    const layer = new HeatLayer(points, {
+      radius: 44,
+      blur: 24,
+      minOpacity: 0.5,
+      maxZoom: 12,
+      max: 1,
+      gradient: { 0.2: '#FDDA8A', 0.55: '#F5A524', 1: '#B46C08' },
+    }) as unknown as L.Layer
+    map.addLayer(layer)
+    return () => {
+      map.removeLayer(layer)
+    }
+  }, [map, cells])
+
+  return null
 }
 
 export function FitBounds({ points }: { points: [number, number][] }) {

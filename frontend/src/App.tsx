@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage'
 import { CrewPage } from './pages/crew/CrewPage'
 import { LiveMapPage } from './pages/ops/LiveMapPage'
 import { ReviewPage } from './pages/ops/ReviewPage'
+import { AnalyticsPage } from './pages/ops/AnalyticsPage'
 import { NewReportPage } from './pages/resident/NewReportPage'
 import { MyReportsPage } from './pages/resident/MyReportsPage'
 import { ReportDetailPage } from './pages/resident/ReportDetailPage'
@@ -45,6 +46,7 @@ export function App() {
         <Route element={<RequireRole roles={['operator', 'supervisor']} />}>
           <Route path="/ops/map" element={<LiveMapPage />} />
           <Route path="/ops/review" element={<ReviewPage />} />
+          <Route path="/ops/analytics" element={<AnalyticsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Home />} />
