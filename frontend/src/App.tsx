@@ -5,6 +5,8 @@ import { AppShell } from './layouts/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { NewReportPage } from './pages/resident/NewReportPage'
+import { MyReportsPage } from './pages/resident/MyReportsPage'
+import { ReportDetailPage } from './pages/resident/ReportDetailPage'
 
 function RequireRole({ roles }: { roles: UserRole[] }) {
   const { user } = useAuth()
@@ -29,9 +31,10 @@ export function App() {
       <Route element={<AppShell />}>
         <Route element={<RequireRole roles={['resident']} />}>
           <Route path="/resident/new" element={<NewReportPage />} />
+          <Route path="/resident/reports" element={<MyReportsPage />} />
           <Route
-            path="/resident/reports"
-            element={<DashboardPage role="resident" />}
+            path="/resident/reports/:reportId"
+            element={<ReportDetailPage />}
           />
         </Route>
         <Route element={<RequireRole roles={['crew']} />}>

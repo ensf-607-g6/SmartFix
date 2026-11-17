@@ -3,6 +3,7 @@ import 'leaflet/dist/leaflet.css'
 import { useEffect, type ReactNode } from 'react'
 import {
   MapContainer,
+  CircleMarker,
   Marker,
   TileLayer,
   ZoomControl,
@@ -74,4 +75,29 @@ export function FlyTo({ position }: { position: [number, number] | null }) {
 
 export function PlacedPin({ lat, lng }: { lat: number; lng: number }) {
   return <Marker position={[lat, lng]} icon={pinIcon} />
+}
+
+export function IssueMarker({
+  lat,
+  lng,
+  severity,
+  escalated,
+}: {
+  lat: number
+  lng: number
+  severity: number | null
+  escalated?: boolean
+}) {
+  return (
+    <CircleMarker
+      center={[lat, lng]}
+      radius={6 + (severity ?? 1) * 1.6}
+      pathOptions={{
+        color: escalated ? '#F6B73C' : '#FFFFFF',
+        weight: escalated ? 4 : 2,
+        fillColor: '#13213C',
+        fillOpacity: 1,
+      }}
+    />
+  )
 }
