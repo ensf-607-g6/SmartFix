@@ -29,10 +29,12 @@ const LiveContext = createContext<LiveValue>({
 
 const REFRESH_KEYS = [
   'map',
+  'repeat-heatmap',
   'issue',
   'my-reports',
   'report',
   'work-orders',
+  'review',
   'summary',
   'notifications',
 ]
