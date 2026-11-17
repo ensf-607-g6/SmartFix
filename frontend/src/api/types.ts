@@ -156,13 +156,6 @@ export interface MapIssue {
   reopen_count: number
 }
 
-export interface RepeatHeatCell {
-  lat: number
-  lng: number
-  issues_30d: number
-  repeat_reports_30d: number
-}
-
 export interface Summary {
   by_status: Record<string, number>
   open: number
@@ -208,8 +201,6 @@ export interface TimelineRow {
   label: string
   source: string
   detail: Record<string, unknown> | null
-  actor_name?: string | null
-  actor_id?: string | null
 }
 
 export interface Crew {
@@ -259,7 +250,6 @@ export interface Notification {
 }
 
 export interface Stats {
-  by_status?: Record<string, number>
   repair_stats: {
     problem_type: string
     display_name: string

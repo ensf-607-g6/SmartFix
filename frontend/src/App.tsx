@@ -2,11 +2,8 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { UserRole } from './api/types'
 import { homeFor, useAuth } from './auth/AuthContext'
 import { AppShell } from './layouts/AppShell'
+import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
-import { CrewPage } from './pages/crew/CrewPage'
-import { LiveMapPage } from './pages/ops/LiveMapPage'
-import { ReviewPage } from './pages/ops/ReviewPage'
-import { AnalyticsPage } from './pages/ops/AnalyticsPage'
 import { NewReportPage } from './pages/resident/NewReportPage'
 import { MyReportsPage } from './pages/resident/MyReportsPage'
 import { ReportDetailPage } from './pages/resident/ReportDetailPage'
@@ -41,12 +38,10 @@ export function App() {
           />
         </Route>
         <Route element={<RequireRole roles={['crew']} />}>
-          <Route path="/crew" element={<CrewPage />} />
+          <Route path="/crew" element={<DashboardPage role="crew" />} />
         </Route>
         <Route element={<RequireRole roles={['operator', 'supervisor']} />}>
-          <Route path="/ops/map" element={<LiveMapPage />} />
-          <Route path="/ops/review" element={<ReviewPage />} />
-          <Route path="/ops/analytics" element={<AnalyticsPage />} />
+          <Route path="/ops/map" element={<DashboardPage role="operator" />} />
         </Route>
       </Route>
       <Route path="*" element={<Home />} />
