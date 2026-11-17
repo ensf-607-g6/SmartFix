@@ -581,6 +581,25 @@ JOIN   issues i ON i.area_id = a.area_id
 WHERE  i.created_at >= now() - interval '30 days'
 GROUP  BY a.area_id, a.name;
 
+-- SF-42: 200 m grid cells weighted by repeat reports from the last 30 days.
+-- GET /dashboard/heatmap returns these columns as JSON for Leaflet.heat.
+CREATE VIEW v_repeat_heat_cells AS
+WITH cells AS (
+    SELECT ST_SnapToGrid(ST_Transform(i.location::geometry, 32611), 200) AS cell,
+           count(*) AS issues_30d,
+           sum(i.duplicate_count) AS repeat_reports_30d
+    FROM issues i
+    WHERE i.created_at >= now() - interval '30 days'
+      AND i.duplicate_count > 0
+      AND i.status NOT IN ('rejected', 'merged')
+    GROUP BY 1
+)
+SELECT ST_Y(ST_Transform(cell, 4326)) AS lat,
+       ST_X(ST_Transform(cell, 4326)) AS lng,
+       issues_30d,
+       repeat_reports_30d
+FROM cells;
+
 -- ---------------------------------------------------------------------
 -- 11. Seed data
 -- ---------------------------------------------------------------------

@@ -156,6 +156,13 @@ export interface MapIssue {
   reopen_count: number
 }
 
+export interface RepeatHeatCell {
+  lat: number
+  lng: number
+  issues_30d: number
+  repeat_reports_30d: number
+}
+
 export interface Summary {
   by_status: Record<string, number>
   open: number
