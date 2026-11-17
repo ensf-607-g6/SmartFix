@@ -9,14 +9,13 @@ from typing import Awaitable, Callable
 import aio_pika
 
 from .models import DomainEvent
+from .topology import DEAD_LETTER_EXCHANGE, DEAD_LETTER_QUEUE, queue_arguments, queue_name
 
 log = logging.getLogger("smartfix.bus")
 
 Handler = Callable[[str, bytes], Awaitable[None]]
 # (consumer, event_name, body, error, attempts)
 DeadLetterHook = Callable[[str, str, bytes, str, int], Awaitable[None]]
-
-DEAD_LETTER_QUEUE = "smartfix.dead_letter"
 
 
 class EventPublisher(ABC):
@@ -59,7 +58,10 @@ class RabbitMQBus(EventPublisher):
         self.channel = await self.connection.channel(publisher_confirms=True)
         self.exchange = await self.channel.declare_exchange(
             self.exchange_name, aio_pika.ExchangeType.TOPIC, durable=True)
-        await self.channel.declare_queue(DEAD_LETTER_QUEUE, durable=True)
+        dlx = await self.channel.declare_exchange(
+            DEAD_LETTER_EXCHANGE, aio_pika.ExchangeType.FANOUT, durable=True)
+        dead_letter = await self.channel.declare_queue(DEAD_LETTER_QUEUE, durable=True)
+        await dead_letter.bind(dlx)
         self._flusher = asyncio.create_task(self._flush_pending())
         log.info("connected to RabbitMQ, exchange %s", self.exchange_name)
 
@@ -100,7 +102,8 @@ class RabbitMQBus(EventPublisher):
         channel = await self.connection.channel()
         await channel.set_qos(prefetch_count=prefetch)
         if durable:
-            queue = await channel.declare_queue(f"smartfix.{consumer}", durable=True)
+            queue = await channel.declare_queue(queue_name(consumer), durable=True,
+                                                arguments=queue_arguments(consumer))
         else:
             queue = await channel.declare_queue("", exclusive=True, auto_delete=True)
         keys = ["#"] if events == ["*"] else [EVENT_TYPES[name].routing_key for name in events]
