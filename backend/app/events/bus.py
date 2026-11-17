@@ -8,6 +8,7 @@ from typing import Awaitable, Callable
 
 import aio_pika
 
+from .logs import describe, describe_message, event_fields, extra, message_fields
 from .models import DomainEvent
 from .topology import DEAD_LETTER_EXCHANGE, DEAD_LETTER_QUEUE, queue_arguments, queue_name
 
@@ -33,8 +34,11 @@ class EventPublisher(ABC):
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
 
-    async def _dead_letter(self, consumer: str, event_name: str, body: bytes, error: str, attempts: int):
-        log.error("dead-letter %s for %s after %d attempts: %s", event_name, consumer, attempts, error)
+    async def _dead_letter(self, consumer: str, event_name: str, body: bytes, error: str, attempts: int,
+                           message_id: str | None = None):
+        fields = {"consumer": consumer, "attempts": attempts, **message_fields(event_name, body, message_id)}
+        log.error("dead-letter for %s after %d attempts: %s %s", consumer, attempts,
+                  describe_message(event_name, body, message_id), error, extra=extra(fields))
         if self.on_dead_letter:
             try:
                 await self.on_dead_letter(consumer, event_name, body, error, attempts)
@@ -76,7 +80,8 @@ class RabbitMQBus(EventPublisher):
             await self._publish(event)
         except Exception as exc:
             # The event row is already committed; keep it and retry so it is not lost.
-            log.warning("publish of %s failed (%s), will retry", event.event_name, exc)
+            log.warning("publish failed (%s), will retry: %s", exc, describe(event),
+                        extra=extra(event_fields(event)))
             self._pending.append(event)
 
     async def _publish(self, event: DomainEvent) -> None:
@@ -116,16 +121,22 @@ class RabbitMQBus(EventPublisher):
                 await handler(message.type, message.body)
                 await message.ack()
             except Exception as exc:
-                log.warning("%s failed on %s (attempt %d): %s", consumer, message.type, attempts, exc)
+                fields = {"consumer": consumer, "attempts": attempts,
+                          **message_fields(message.type, message.body, message.message_id)}
+                log.warning("%s failed (attempt %d): %s %s", consumer, attempts,
+                            describe_message(message.type, message.body, message.message_id), exc,
+                            extra=extra(fields))
                 if attempts >= self.max_attempts:
                     await channel.default_exchange.publish(
                         aio_pika.Message(body=message.body, type=message.type,
                                          content_type="application/json",
+                                         message_id=message.message_id,
                                          delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                                          headers={"x-consumer": consumer, "x-error": str(exc)[:500],
                                                   "x-attempts": attempts}),
                         routing_key=DEAD_LETTER_QUEUE)
-                    await self._dead_letter(consumer, message.type, message.body, str(exc), attempts)
+                    await self._dead_letter(consumer, message.type, message.body, str(exc), attempts,
+                                            message.message_id)
                 else:
                     await asyncio.sleep(attempts)          # small back-off before redelivery
                     await channel.default_exchange.publish(
@@ -168,7 +179,9 @@ class InMemoryBus(EventPublisher):
                 await handler(event_name, body)
             except Exception as exc:
                 attempts += 1
-                log.warning("%s failed on %s (attempt %d): %s", consumer, event_name, attempts, exc)
+                fields = {"consumer": consumer, "attempts": attempts, **message_fields(event_name, body)}
+                log.warning("%s failed (attempt %d): %s %s", consumer, attempts,
+                            describe_message(event_name, body), exc, extra=extra(fields))
                 if attempts >= self.max_attempts:
                     self.dead_letters.append((consumer, event_name, str(exc)))
                     await self._dead_letter(consumer, event_name, body, str(exc), attempts)
