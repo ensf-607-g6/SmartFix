@@ -1,21 +1,26 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { HeatLayer } from 'leaflet.heat'
 import { useEffect, type ReactNode } from 'react'
 import {
   MapContainer,
   CircleMarker,
   Marker,
   TileLayer,
+  Tooltip,
   ZoomControl,
   useMap,
   useMapEvents,
 } from 'react-leaflet'
+import { severityColor } from '../lib/format'
+import type { RepeatHeatCell } from '../api/types'
 
 const CALGARY: [number, number] = [51.0447, -114.0719]
-const TILE_URL =
-  'https://{s}.basemap.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_URL = import.meta.env.DEV
+  ? '/map-tiles/{z}/{x}/{y}.png'
+  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const TILE_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
 const pinIcon = L.divIcon({
   className: '',
@@ -82,22 +87,101 @@ export function IssueMarker({
   lng,
   severity,
   escalated,
+  selected,
+  label,
+  onClick,
 }: {
   lat: number
   lng: number
   severity: number | null
   escalated?: boolean
+  selected?: boolean
+  label?: string
+  onClick?: () => void
 }) {
   return (
     <CircleMarker
       center={[lat, lng]}
       radius={6 + (severity ?? 1) * 1.6}
       pathOptions={{
-        color: escalated ? '#F6B73C' : '#FFFFFF',
-        weight: escalated ? 4 : 2,
-        fillColor: '#13213C',
+        color: escalated ? '#F6B73C' : selected ? '#13213C' : '#FFFFFF',
+        weight: escalated || selected ? 4 : 2,
+        fillColor: severityColor(severity),
         fillOpacity: 1,
       }}
-    />
+      eventHandlers={onClick ? { click: onClick } : undefined}
+    >
+      {label && <Tooltip direction="top">{label}</Tooltip>}
+    </CircleMarker>
+  )
+}
+
+export function RepeatHeatLayer({ cells }: { cells: RepeatHeatCell[] }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const valid = cells.filter(
+      (cell) =>
+        Number.isFinite(cell.lat) &&
+        Number.isFinite(cell.lng) &&
+        cell.repeat_reports_30d > 0,
+    )
+    const highest = Math.max(1, ...valid.map((cell) => cell.repeat_reports_30d))
+    const points: L.LatLngTuple[] = valid.map((cell) => [
+      cell.lat,
+      cell.lng,
+      cell.repeat_reports_30d / highest,
+    ])
+    const layer = new HeatLayer(points, {
+      radius: 44,
+      blur: 24,
+      minOpacity: 0.5,
+      maxZoom: 12,
+      max: 1,
+      gradient: { 0.2: '#FDDA8A', 0.55: '#F5A524', 1: '#B46C08' },
+    }) as unknown as L.Layer
+    map.addLayer(layer)
+    return () => {
+      map.removeLayer(layer)
+    }
+  }, [map, cells])
+
+  return null
+}
+
+export function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap()
+  const key = points.map((point) => point.join(',')).join('|')
+
+  useEffect(() => {
+    if (points.length === 1) map.setView(points[0], 15)
+    else if (points.length > 1) {
+      map.fitBounds(points, { padding: [40, 40], maxZoom: 15 })
+    }
+    // The coordinate key changes when the actual point set changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map])
+
+  return null
+}
+
+export function SeverityLegend() {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-ink-600 shadow-card">
+      <span>Severity</span>
+      {[1, 2, 3, 4, 5].map((value) => (
+        <span key={value} className="flex items-center gap-1">
+          <span
+            className="inline-block rounded-full border border-white"
+            style={{
+              background: severityColor(value),
+              width: 8 + value * 2,
+              height: 8 + value * 2,
+            }}
+          />
+          {value}
+        </span>
+      ))}
+    </div>
   )
 }

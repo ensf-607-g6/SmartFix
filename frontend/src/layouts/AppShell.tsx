@@ -1,5 +1,7 @@
 import {
   ClipboardList,
+  ClipboardCheck,
+  BarChart3,
   FilePlus2,
   HardHat,
   LogOut,
@@ -30,8 +32,16 @@ const NAV: Record<UserRole, NavItem[]> = {
     },
   ],
   crew: [{ to: '/crew', label: 'Work orders', icon: HardHat }],
-  operator: [{ to: '/ops/map', label: 'Live map', icon: MapIcon }],
-  supervisor: [{ to: '/ops/map', label: 'Live map', icon: MapIcon }],
+  operator: [
+    { to: '/ops/map', label: 'Live map', icon: MapIcon },
+    { to: '/ops/review', label: 'Review queue', icon: ClipboardCheck },
+    { to: '/ops/analytics', label: 'Analytics', icon: BarChart3 },
+  ],
+  supervisor: [
+    { to: '/ops/map', label: 'Live map', icon: MapIcon },
+    { to: '/ops/review', label: 'Review queue', icon: ClipboardCheck },
+    { to: '/ops/analytics', label: 'Analytics', icon: BarChart3 },
+  ],
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
