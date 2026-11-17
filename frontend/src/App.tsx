@@ -4,6 +4,7 @@ import { homeFor, useAuth } from './auth/AuthContext'
 import { AppShell } from './layouts/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { NewReportPage } from './pages/resident/NewReportPage'
 
 function RequireRole({ roles }: { roles: UserRole[] }) {
   const { user } = useAuth()
@@ -27,6 +28,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<AppShell />}>
         <Route element={<RequireRole roles={['resident']} />}>
+          <Route path="/resident/new" element={<NewReportPage />} />
           <Route
             path="/resident/reports"
             element={<DashboardPage role="resident" />}

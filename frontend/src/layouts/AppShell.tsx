@@ -1,5 +1,11 @@
-import { ClipboardList, HardHat, LogOut, Map as MapIcon } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import {
+  ClipboardList,
+  FilePlus2,
+  HardHat,
+  LogOut,
+  Map as MapIcon,
+} from 'lucide-react'
+import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import type { UserRole } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { Brand } from '../components/Brand'
@@ -12,6 +18,11 @@ interface NavItem {
 
 const NAV: Record<UserRole, NavItem[]> = {
   resident: [
+    {
+      to: '/resident/new',
+      label: 'Report a problem',
+      icon: FilePlus2,
+    },
     {
       to: '/resident/reports',
       label: 'My reports',
@@ -33,22 +44,22 @@ const ROLE_LABEL: Record<UserRole, string> = {
 export function AppShell() {
   const { user, logout } = useAuth()
 
-  if (!user) return null
+  if (!user) return <Navigate to="/login" replace />
 
   return (
-    <div className="flex min-h-full">
-      <aside className="flex w-64 shrink-0 flex-col bg-ink-900 text-ink-100">
-        <div className="px-6 pb-6 pt-7">
+    <div className="flex min-h-full flex-col md:flex-row">
+      <aside className="flex w-full shrink-0 items-center gap-3 bg-ink-900 px-3 py-3 text-ink-100 md:w-64 md:flex-col md:items-stretch md:gap-0 md:px-0 md:py-0">
+        <div className="hidden px-6 pb-6 pt-7 md:block">
           <Brand dark />
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto md:block md:space-y-1 md:px-3">
           {NAV[user.role].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end
               className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                `group flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition md:gap-3 ${
                   isActive
                     ? 'bg-white/10 text-white'
                     : 'text-ink-300 hover:bg-white/5 hover:text-white'
@@ -58,7 +69,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <span
-                    className={`h-5 w-1 rounded-full ${
+                    className={`hidden h-5 w-1 rounded-full md:block ${
                       isActive ? 'bg-accent-500' : 'bg-transparent'
                     }`}
                   />
@@ -69,7 +80,7 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="m-3 rounded-xl bg-white/5 p-4">
+        <div className="m-3 hidden rounded-xl bg-white/5 p-4 md:block">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold text-white">
               {user.full_name.charAt(0)}
