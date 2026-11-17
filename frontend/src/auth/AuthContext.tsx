@@ -1,114 +1,81 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
+  type PropsWithChildren,
 } from 'react'
-import {
-  api,
-  loadStoredSession,
-  setToken,
-  setUnauthorizedHandler,
-  storeSession,
-} from '../api/client'
-import type { AuthSession, AuthUser, UserRole } from '../api/types'
+import { AuthContext, type AuthContextValue } from './authContextValue'
+import type { AuthSession, AuthUser, UserRole } from './types'
 
-interface AuthValue {
-  user: AuthUser | null
-  login: (email: string, password: string) => Promise<AuthUser>
-  register: (
-    fullName: string,
-    email: string,
-    password: string,
-  ) => Promise<AuthUser>
-  logout: () => void
+const STORAGE_KEY = 'smartfix.auth.session'
+
+const demoUsers: Record<UserRole, AuthUser> = {
+  resident: {
+    id: 'demo-resident-sodeeq',
+    name: 'Sodeeq Alli',
+    email: 'sodeeq@example.com',
+    role: 'resident',
+  },
+  crew: {
+    id: 'demo-crew-sodeeq',
+    name: 'Sodeeq Alli',
+    email: 'sodeeq.crew@example.com',
+    role: 'crew',
+  },
+  operator: {
+    id: 'demo-operator-sodeeq',
+    name: 'Sodeeq Alli',
+    email: 'sodeeq.operator@example.com',
+    role: 'operator',
+  },
 }
 
-const AuthContext = createContext<AuthValue | null>(null)
+function readStoredSession(): AuthSession | null {
+  const value = window.localStorage.getItem(STORAGE_KEY)
+  if (!value) return null
 
-const initial = loadStoredSession<AuthSession>()
-setToken(initial?.access_token ?? null)
-
-// Shared with route guards and login redirects.
-// eslint-disable-next-line react-refresh/only-export-components
-export function homeFor(role: UserRole): string {
-  if (role === 'resident') return '/resident/reports'
-  if (role === 'crew') return '/crew'
-  return '/ops/map'
+  try {
+    return JSON.parse(value) as AuthSession
+  } catch {
+    window.localStorage.removeItem(STORAGE_KEY)
+    return null
+  }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(initial)
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
+export function AuthProvider({ children }: PropsWithChildren) {
+  const [isReady, setIsReady] = useState(false)
+  const [session, setSession] = useState<AuthSession | null>(null)
 
-  const apply = useCallback(
-    (next: AuthSession | null) => {
-      setToken(next?.access_token ?? null)
-      storeSession(next)
-      setSession(next)
-      queryClient.clear()
-    },
-    [queryClient],
-  )
-
-  useEffect(
-    () =>
-      setUnauthorizedHandler(() => {
-        apply(null)
-        navigate('/login', { replace: true })
-      }),
-    [apply, navigate],
-  )
-
-  // Refresh the profile once (role or crew may have changed since the token was stored).
   useEffect(() => {
-    if (!initial) return
-    api
-      .get<AuthUser>('/auth/me')
-      .then((user) => setSession((s) => (s ? { ...s, user } : s)))
-      .catch(() => undefined)
+    setSession(readStoredSession())
+    setIsReady(true)
   }, [])
 
-  const value = useMemo<AuthValue>(
+  const signInAs = useCallback((role: UserRole) => {
+    const nextSession: AuthSession = {
+      accessToken: `demo-${role}-token`,
+      user: demoUsers[role],
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession))
+    setSession(nextSession)
+  }, [])
+
+  const signOut = useCallback(() => {
+    window.localStorage.removeItem(STORAGE_KEY)
+    setSession(null)
+  }, [])
+
+  const value = useMemo<AuthContextValue>(
     () => ({
+      isReady,
+      session,
       user: session?.user ?? null,
-      login: async (email, password) => {
-        const next = await api.post<AuthSession>('/auth/login', {
-          email,
-          password,
-        })
-        apply(next)
-        return next.user
-      },
-      register: async (full_name, email, password) => {
-        const next = await api.post<AuthSession>('/auth/register', {
-          full_name,
-          email,
-          password,
-        })
-        apply(next)
-        return next.user
-      },
-      logout: () => {
-        apply(null)
-        navigate('/login', { replace: true })
-      },
+      signInAs,
+      signOut,
     }),
-    [session, apply, navigate],
+    [isReady, session, signInAs, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAuth(): AuthValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
-  return ctx
 }

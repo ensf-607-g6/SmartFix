@@ -1,100 +1,134 @@
-import { ClipboardList, HardHat, LogOut, Map as MapIcon } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
-import type { UserRole } from '../api/types'
-import { useAuth } from '../auth/AuthContext'
+import {
+  BarChart3,
+  Bell,
+  ClipboardList,
+  FilePlus2,
+  LogOut,
+  Map,
+  Menu,
+  Users,
+  X,
+} from 'lucide-react'
+import { useState, type PropsWithChildren } from 'react'
+import { NavLink } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth'
+import type { UserRole } from '../auth/types'
 import { Brand } from '../components/Brand'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-}
-
-const NAV: Record<UserRole, NavItem[]> = {
-  resident: [
-    {
-      to: '/resident/reports',
-      label: 'My reports',
-      icon: ClipboardList,
-    },
-  ],
-  crew: [{ to: '/crew', label: 'Work orders', icon: HardHat }],
-  operator: [{ to: '/ops/map', label: 'Live map', icon: MapIcon }],
-  supervisor: [{ to: '/ops/map', label: 'Live map', icon: MapIcon }],
-}
-
-const ROLE_LABEL: Record<UserRole, string> = {
+const roleLabels: Record<UserRole, string> = {
   resident: 'Resident',
   crew: 'Repair crew',
   operator: 'City operator',
-  supervisor: 'Supervisor',
 }
 
-export function AppShell() {
-  const { user, logout } = useAuth()
+const roleNav = {
+  resident: [
+    { label: 'My reports', icon: ClipboardList },
+    { label: 'New report', icon: FilePlus2 },
+    { label: 'Notifications', icon: Bell },
+  ],
+  crew: [
+    { label: 'Work orders', icon: ClipboardList },
+    { label: 'Service map', icon: Map },
+    { label: 'Notifications', icon: Bell },
+  ],
+  operator: [
+    { label: 'Live map', icon: Map },
+    { label: 'Review queue', icon: ClipboardList },
+    { label: 'Crews', icon: Users },
+    { label: 'Analytics', icon: BarChart3 },
+  ],
+} satisfies Record<UserRole, { label: string; icon: typeof Map }[]>
 
-  if (!user) return null
+interface AppShellProps extends PropsWithChildren {
+  role: UserRole
+  title: string
+  eyebrow: string
+}
+
+export function AppShell({ role, title, eyebrow, children }: AppShellProps) {
+  const { user, signOut } = useAuth()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
-    <div className="flex min-h-full">
-      <aside className="flex w-64 shrink-0 flex-col bg-ink-900 text-ink-100">
-        <div className="px-6 pb-6 pt-7">
-          <Brand dark />
+    <div className="min-h-screen bg-[#f6f7f3] text-slate-900">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-forest-900/10 bg-white/95 px-4 backdrop-blur lg:hidden">
+        <Brand />
+        <button
+          type="button"
+          className="rounded-lg p-2 text-forest-900 hover:bg-forest-50"
+          onClick={() => setMobileNavOpen((open) => !open)}
+          aria-label="Toggle navigation"
+          aria-expanded={mobileNavOpen}
+        >
+          {mobileNavOpen ? <X /> : <Menu />}
+        </button>
+      </header>
+
+      <aside
+        className={`${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-forest-900/10 bg-white px-5 py-6 transition-transform lg:translate-x-0`}
+      >
+        <Brand />
+
+        <div className="mt-9 rounded-2xl bg-forest-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-forest-600">
+            Signed in as
+          </p>
+          <p className="mt-2 font-semibold text-forest-950">{user?.name}</p>
+          <p className="text-sm text-forest-700">{roleLabels[role]}</p>
         </div>
-        <nav className="flex-1 space-y-1 px-3">
-          {NAV[user.role].map((item) => (
+
+        <nav
+          className="mt-8 space-y-2"
+          aria-label={`${roleLabels[role]} navigation`}
+        >
+          {roleNav[role].map(({ label, icon: Icon }, index) => (
             <NavLink
-              key={item.to}
-              to={item.to}
-              end
+              key={label}
+              to={`/${role}`}
+              onClick={() => setMobileNavOpen(false)}
               className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-white/10 text-white'
-                    : 'text-ink-300 hover:bg-white/5 hover:text-white'
+                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                  isActive && index === 0
+                    ? 'bg-forest-900 text-white shadow-lg shadow-forest-950/15'
+                    : 'text-slate-600 hover:bg-forest-50 hover:text-forest-900'
                 }`
               }
             >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={`h-5 w-1 rounded-full ${
-                      isActive ? 'bg-accent-500' : 'bg-transparent'
-                    }`}
-                  />
-                  <item.icon className="h-[18px] w-[18px]" />
-                  <span>{item.label}</span>
-                </>
-              )}
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
             </NavLink>
           ))}
         </nav>
-        <div className="m-3 rounded-xl bg-white/5 p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-700 text-sm font-semibold text-white">
-              {user.full_name.charAt(0)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
-                {user.full_name}
-              </p>
-              <p className="truncate text-xs text-ink-300">
-                {ROLE_LABEL[user.role]}
-                {user.crew_name && ` · ${user.crew_name}`}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 py-2 text-xs font-medium text-ink-200 transition hover:bg-white/5 hover:text-white"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Sign out
-          </button>
-        </div>
+
+        <button
+          type="button"
+          onClick={signOut}
+          className="mt-auto flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <LogOut className="h-5 w-5" aria-hidden="true" />
+          Sign out
+        </button>
       </aside>
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <Outlet />
+
+      {mobileNavOpen && (
+        <button
+          className="fixed inset-0 z-30 bg-slate-950/25 lg:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          aria-label="Close navigation"
+        />
+      )}
+
+      <main className="px-5 py-8 sm:px-8 lg:ml-72 lg:px-12 lg:py-10">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-forest-600">
+            {eyebrow}
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            {title}
+          </h1>
+          {children}
+        </div>
       </main>
     </div>
   )
