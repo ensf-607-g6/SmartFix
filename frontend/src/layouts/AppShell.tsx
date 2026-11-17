@@ -1,6 +1,7 @@
 import {
   ClipboardList,
   ClipboardCheck,
+  BarChart3,
   FilePlus2,
   HardHat,
   LogOut,
@@ -34,10 +35,12 @@ const NAV: Record<UserRole, NavItem[]> = {
   operator: [
     { to: '/ops/map', label: 'Live map', icon: MapIcon },
     { to: '/ops/review', label: 'Review queue', icon: ClipboardCheck },
+    { to: '/ops/analytics', label: 'Analytics', icon: BarChart3 },
   ],
   supervisor: [
     { to: '/ops/map', label: 'Live map', icon: MapIcon },
     { to: '/ops/review', label: 'Review queue', icon: ClipboardCheck },
+    { to: '/ops/analytics', label: 'Analytics', icon: BarChart3 },
   ],
 }
 
