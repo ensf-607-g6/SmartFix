@@ -6,4 +6,5 @@ pydantic>=2.7
 pydantic-settings>=2.3
 aio-pika>=9.4
 asyncpg>=0.30
+Pillow>=11.0
 pytest>=8.0
