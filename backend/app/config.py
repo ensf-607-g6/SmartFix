@@ -1,4 +1,4 @@
-"""Settings, read from backend/.env"""
+"""Settings, read from backend/.env (see .env.example)."""
 from functools import lru_cache
 from pathlib import Path
 
