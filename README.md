@@ -122,3 +122,59 @@ trigger, dead-lettering, and role-based access.
   template if the model is slow). They are delivered live over WebSocket to an in-app inbox, and as desktop
   alerts through the browser Notification API when the tab is in the background.
 - **Photos** are stored under `backend/storage/` and served with per-role checks. Swap `PhotoStorage` for Supabase Storage to deploy.
+
+
+## Development Workflow and CI
+
+### Branches and Pull Requests
+
+All changes to SmartFix should be submitted through pull requests (PRs) targeting the `main` branch.
+
+1. Create or switch to your development branch.
+2. Make your changes and commit them.
+3. Push your branch to GitHub.
+4. Open a pull request targeting `main`.
+5. Wait for CI checks and code review before merging.
+
+Direct changes to `main` are restricted through GitHub branch protection.
+
+### Continuous Integration (CI)
+
+SmartFix uses GitHub Actions to automatically run checks whenever a pull request is opened or updated against `main`.
+
+The CI workflow is defined in `.github/workflows/ci.yml` and includes:
+
+- **Backend:** Python linting with Ruff and automated tests using pytest.
+- **Frontend:** ESLint checks and a production build using Vite.
+- **Services:** PostgreSQL with PostGIS and RabbitMQ containers for the CI environment.
+
+Both backend and frontend checks must pass before a pull request can be merged into `main`.
+
+### Running Checks Locally
+
+Backend:
+
+```bash
+cd backend
+python -m pip install -r requirements.txt
+python -m pip install ruff
+ruff check . --select E4,E7,E9,F
+python -m pytest -v
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
+### Pull Request and Issue Templates
+
+The repository provides templates to standardize contributions:
+
+- `.github/pull_request_template.md` — PR descriptions, testing, and review checklist.
+- `.github/ISSUE_TEMPLATE/bug_report.md` — Bug reports.
+- `.github/ISSUE_TEMPLATE/feature_request.md` — Feature requests.
