@@ -33,7 +33,7 @@ export function loadStoredSession<T>(): T | null {
     return null
   }
 }
-export function storeSession(session: unknown) {
+export function storeSession(session: unknown | null) {
   try {
     if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
     else localStorage.removeItem(SESSION_KEY)
@@ -44,14 +44,9 @@ export function storeSession(session: unknown) {
 
 function errorMessage(body: unknown, status: number): string {
   if (body && typeof body === 'object' && 'detail' in body) {
-    const detail = body.detail
+    const detail = (body as { detail: unknown }).detail
     if (typeof detail === 'string') return detail
-    if (Array.isArray(detail)) {
-      const first = detail[0] as unknown
-      if (first && typeof first === 'object' && 'msg' in first) {
-        return String(first.msg).replace(/^Value error, /, '')
-      }
-    }
+    if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, '')
   }
   return `Request failed (${status})`
 }
@@ -60,13 +55,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  if (init.body && !(init.body instanceof FormData))
-    headers.set('Content-Type', 'application/json')
+  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
   if (res.status === 401 && token) onUnauthorized?.()
   if (!res.ok) {
-    const body: unknown = await res.json().catch(() => null)
+    const body = await res.json().catch(() => null)
     throw new ApiError(errorMessage(body, res.status), res.status)
   }
   if (res.status === 204) return undefined as T
@@ -76,19 +70,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, {
-      method: 'POST',
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
-  upload: <T>(path: string, form: FormData) =>
-    request<T>(path, { method: 'POST', body: form }),
+    request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  upload: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
 }
 
-export function photoUrl(
-  photoId: string | null | undefined,
-): string | undefined {
+export function photoUrl(photoId: string | null | undefined): string | undefined {
   if (!photoId) return undefined
   return `${API_BASE_URL}/photos/${photoId}?token=${encodeURIComponent(token ?? '')}`
 }
