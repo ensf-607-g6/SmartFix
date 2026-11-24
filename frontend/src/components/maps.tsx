@@ -6,7 +6,7 @@ import { ACCENT, severityColor } from '../lib/format'
 
 export const CALGARY: [number, number] = [51.0447, -114.0719]
 
-const TILE_URL = 'https://{s}.basemap.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_URL = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${import.meta.env.VITE_CARTO_API_KEY}`
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
 
