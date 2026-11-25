@@ -16,7 +16,7 @@ from .db import Database
 from .events.bus import EventPublisher, InMemoryBus, RabbitMQBus
 from .events.store import EventStore
 from .modules import analytics, dashboard, notifications, priority, reports, scheduler, validation, work_orders
-from .storage import PhotoStorage
+from .storage import create_storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("smartfix")
@@ -67,7 +67,7 @@ def create_app(ctx_factory=None) -> FastAPI:
             ai = OllamaClient(settings.ollama_url, settings.vision_model, settings.fallback_model,
                               settings.ollama_timeout_s)
             ctx = AppContext(settings=settings, db=db, bus=bus, store=EventStore(db), ai=ai,
-                             hub=ws.WebSocketHub(db), storage=PhotoStorage(settings.storage_dir))
+                             hub=ws.WebSocketHub(db), storage=create_storage())
             asyncio.create_task(ai.warm_up())
         set_context(ctx)
         tasks = await start_modules(ctx)

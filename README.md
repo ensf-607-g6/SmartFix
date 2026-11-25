@@ -52,7 +52,8 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env
 :: Update the database URL in the .env file
-python -m scripts.init_db
+python -m scripts.init_db # schema v2 + Calgary service areas, crews, demo users
+                          # add --reset to wipe and start over
 ```
 
 ### Linux and macOS

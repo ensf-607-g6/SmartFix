@@ -2,7 +2,8 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 
 from .auth import CurrentUser, current_user
 from .context import AppContext, get_ctx
@@ -31,9 +32,7 @@ async def get_photo(photo_id: UUID, user: CurrentUser = Depends(current_user), c
     if not allowed:
         raise HTTPException(404, "Photo not found")
     try:
-        path = ctx.storage.path(photo["storage_path"])
-    except FileNotFoundError:
+        data = await run_in_threadpool(ctx.storage.load, photo["storage_path"])
+    except Exception:
         raise HTTPException(404, "Photo file is missing")
-    if not path.exists():
-        raise HTTPException(404, "Photo file is missing")
-    return FileResponse(path, media_type=photo["mime_type"], headers={"Cache-Control": "private, max-age=3600"})
+    return Response(data, media_type=photo["mime_type"], headers={"Cache-Control": "private, max-age=3600"})
