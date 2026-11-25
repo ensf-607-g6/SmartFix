@@ -27,8 +27,7 @@ export type IssueStatus =
   | 'rejected'
   | 'merged'
 
-export type ReportStatus =
-  'submitted' | 'validated' | 'duplicate' | 'needs_review' | 'rejected'
+export type ReportStatus = 'submitted' | 'validated' | 'duplicate' | 'needs_review' | 'rejected'
 
 export interface ProblemType {
   problem_type_id: number
@@ -120,12 +119,7 @@ export interface IssueDetail {
   lng: number
   reports: IssueReport[]
   work_orders: IssueWorkOrder[]
-  status_history: {
-    from_status: IssueStatus | null
-    to_status: IssueStatus
-    module: string
-    changed_at: string
-  }[]
+  status_history: { from_status: IssueStatus | null; to_status: IssueStatus; module: string; changed_at: string }[]
   priority_history: {
     severity_part: string
     duplicate_part: string
@@ -163,12 +157,7 @@ export interface Summary {
   escalated: number
   awaiting_crew: number
   dead_letters: number
-  validation_latency: {
-    runs: number
-    avg_ms: string | null
-    p95_ms: number | null
-    pct_under_15s: string | null
-  }
+  validation_latency: { runs: number; avg_ms: string | null; p95_ms: number | null; pct_under_15s: string | null }
 }
 
 export interface ReviewItem {
@@ -257,19 +246,8 @@ export interface Stats {
     avg_repair_hours: string
     pct_met_deadline: string
   }[]
-  hotspots: {
-    area_id: number
-    name: string
-    issues_30d: number
-    repeat_reports_30d: number
-    still_open: number
-  }[]
-  by_type: {
-    code: string
-    display_name: string
-    open: number
-    closed: number
-  }[]
+  hotspots: { area_id: number; name: string; issues_30d: number; repeat_reports_30d: number; still_open: number }[]
+  by_type: { code: string; display_name: string; open: number; closed: number }[]
   verdicts: Record<string, number>
   confirmations: Record<string, number>
   events_24h: { event_name: string; n: number }[]

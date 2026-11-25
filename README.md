@@ -40,14 +40,31 @@ Any PostgreSQL 15+ with PostGIS works, including Supabase.
 ## Setup (once)
 
 ```bash
+cd <path to your postgres installation>
 createdb -p 5433 smartfix
+```
 
+### Windows (Command Prompt)
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+copy .env.example .env
+:: Update the database URL in the .env file
+python -m scripts.init_db
+```
+
+### Linux and macOS
+```bash
 cd backend
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp .env.example .env                    # then set JWT_SECRET; defaults match the steps above
-.venv/bin/python -m scripts.init_db     # schema v2 + Calgary service areas, crews, demo users
-                                        # add --reset to wipe and start over
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+:: Update the database URL in the .env file
+python -m scripts.init_db     # schema v2 + Calgary service areas, crews, demo users
+                              # add --reset to wipe and start over
 
 cd ../frontend
 npm install
@@ -56,7 +73,7 @@ npm install
 ## Run
 
 ```bash
-./dev.sh          # backend on :8000, frontend on :5173
+./start.sh          # backend on :8000, frontend on :5173
 ```
 
 Open http://127.0.0.1:5173. API docs: http://127.0.0.1:8000/docs.

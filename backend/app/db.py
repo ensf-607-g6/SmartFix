@@ -22,7 +22,7 @@ class Database:
         self.pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
-        self.pool = await asyncpg.create_pool(self.dsn, min_size=2, max_size=10, init=_init_connection)
+        self.pool = await asyncpg.create_pool(self.dsn, min_size=2, max_size=10, init=_init_connection, statement_cache_size=0)
 
     async def close(self) -> None:
         if self.pool:
