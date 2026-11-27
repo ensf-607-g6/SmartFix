@@ -1,18 +1,23 @@
 import { ArrowRight, HardHat, Home, Map, ShieldCheck } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { homeFor, useAuth } from '../auth/AuthContext'
 import { Brand } from '../components/Brand'
 import { ErrorNote, Field } from '../components/ui'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
+
+const DEMO_PASSWORD = 'smartfix123'
 
 const DEMO = [
-  { email: 'resident@smartfix.dev', label: 'Resident', icon: Home },
-  { email: 'operator@smartfix.dev', label: 'City operator', icon: Map },
-  { email: 'crew.north@smartfix.dev', label: 'Crew (Roads North)', icon: HardHat },
-  { email: 'supervisor@smartfix.dev', label: 'Supervisor', icon: ShieldCheck },
-]
+  { email: 'resident@smartfix.dev', label: 'login.demoResident', icon: Home },
+  { email: 'operator@smartfix.dev', label: 'login.demoOperator', icon: Map },
+  { email: 'crew.north@smartfix.dev', label: 'login.demoCrewNorth', icon: HardHat },
+  { email: 'supervisor@smartfix.dev', label: 'login.demoSupervisor', icon: ShieldCheck },
+] as const
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const { user, login, register } = useAuth()
   const navigate = useNavigate()
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -21,6 +26,9 @@ export function LoginPage() {
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const headingId = useId()
+  const demoId = useId()
+  useDocumentTitle(mode === 'login' ? t('login.signInTitle') : t('login.registerTitle'))
 
   if (user) return <Navigate to={homeFor(user.role)} replace />
 
@@ -57,17 +65,16 @@ export function LoginPage() {
         </div>
         <div className="relative max-w-md">
           <h1 className="text-4xl font-bold leading-tight tracking-tight">
-            Spot it. Snap it. <span className="text-accent-400">We fix it.</span>
+            {t('login.heroTitle')} <span className="text-accent-400">{t('login.heroAccent')}</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed text-ink-200">
-            Report potholes, broken streetlights, leaks and cracked sidewalks in seconds. SmartFix checks every photo,
-            puts the most dangerous problems first, and keeps you updated until the repair is done.
+            {t('login.heroBody')}
           </p>
           <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-8">
             {[
-              ['< 15 s', 'to classify a photo'],
-              ['50 m', 'duplicate matching'],
-              ['7 days', 'to confirm a repair'],
+              [t('login.statClassifyValue'), t('login.statClassifyLabel')],
+              [t('login.statDuplicateValue'), t('login.statDuplicateLabel')],
+              [t('login.statConfirmValue'), t('login.statConfirmLabel')],
             ].map(([v, l]) => (
               <div key={l}>
                 <dt className="text-2xl font-bold text-white">{v}</dt>
@@ -76,23 +83,23 @@ export function LoginPage() {
             ))}
           </dl>
         </div>
-        <p className="relative text-xs text-ink-400">ENSF 607 · Group 6 · Supporting UN SDG 9.1</p>
+        <p className="relative text-xs text-ink-400">{t('login.footer')}</p>
       </section>
 
-      <section className="flex flex-1 items-center justify-center p-12">
+      <main className="flex flex-1 items-center justify-center p-12">
         <div className="w-full max-w-md">
-          <h2 className="text-2xl font-bold tracking-tight">{mode === 'login' ? 'Sign in' : 'Create a resident account'}</h2>
+          <h2 id={headingId} className="text-2xl font-bold tracking-tight">{mode === 'login' ? t('login.signInTitle') : t('login.registerTitle')}</h2>
           <p className="mt-1.5 text-sm text-ink-500">
-            {mode === 'login' ? 'Welcome back. Use your SmartFix account.' : 'Residents can sign up to report problems.'}
+            {mode === 'login' ? t('login.signInSubtitle') : t('login.registerSubtitle')}
           </p>
 
-          <form onSubmit={submit} className="mt-8 space-y-4">
+          <form onSubmit={submit} className="mt-8 space-y-4" aria-labelledby={headingId}>
             {mode === 'register' && (
-              <Field label="Full name">
+              <Field label={t('login.fullName')}>
                 <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
               </Field>
             )}
-            <Field label="Email">
+            <Field label={t('login.email')}>
               <input
                 className="input"
                 type="email"
@@ -102,7 +109,7 @@ export function LoginPage() {
                 required
               />
             </Field>
-            <Field label="Password">
+            <Field label={t('login.password')}>
               <input
                 className="input"
                 type="password"
@@ -115,12 +122,12 @@ export function LoginPage() {
             </Field>
             {error && <ErrorNote>{error}</ErrorNote>}
             <button className="btn-primary w-full py-2.5" disabled={busy}>
-              {mode === 'login' ? 'Sign in' : 'Create account'} <ArrowRight className="h-4 w-4" />
+              {mode === 'login' ? t('login.signInButton') : t('login.createAccountButton')} <ArrowRight aria-hidden className="h-4 w-4" />
             </button>
           </form>
 
           <p className="mt-5 text-center text-sm text-ink-500">
-            {mode === 'login' ? 'New resident?' : 'Already have an account?'}{' '}
+            {mode === 'login' ? t('login.newResident') : t('login.haveAccount')}{' '}
             <button
               className="font-semibold text-ink-900 underline-offset-4 hover:underline"
               onClick={() => {
@@ -128,30 +135,30 @@ export function LoginPage() {
                 setError(null)
               }}
             >
-              {mode === 'login' ? 'Create an account' : 'Sign in'}
+              {mode === 'login' ? t('login.switchToRegister') : t('login.switchToSignIn')}
             </button>
           </p>
 
           {mode === 'login' && (
             <div className="mt-10 border-t border-paper-300 pt-6">
-              <p className="label">Demo accounts · password smartfix123</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <p id={demoId} className="label">{t('login.demoAccounts', { password: DEMO_PASSWORD })}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-labelledby={demoId}>
                 {DEMO.map((d) => (
                   <button
                     key={d.email}
                     disabled={busy}
-                    onClick={(e) => submit(e, { email: d.email, password: 'smartfix123' })}
+                    onClick={(e) => submit(e, { email: d.email, password: DEMO_PASSWORD })}
                     className="flex items-center gap-2.5 rounded-lg border border-ink-100 bg-white px-3 py-2.5 text-left text-sm font-medium text-ink-800 transition hover:border-ink-300 hover:shadow-card"
                   >
-                    <d.icon className="h-4 w-4 text-ink-500" />
-                    {d.label}
+                    <d.icon aria-hidden className="h-4 w-4 text-ink-500" />
+                    {t(d.label)}
                   </button>
                 ))}
               </div>
             </div>
           )}
         </div>
-      </section>
+      </main>
     </div>
   )
 }

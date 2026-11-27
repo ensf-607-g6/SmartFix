@@ -61,7 +61,9 @@ export class LiveMapPage {
 
   /** A filter chip in the toolbar: a status label, a problem type name or a severity 1-5. */
   chip(label: string): Locator {
-    return this.toolbar.getByRole('button', { name: label, exact: true })
+    // Severity chips show just the digit but are announced as "Severity N".
+    const name = /^[1-5]$/.test(label) ? `Severity ${label}` : label
+    return this.toolbar.getByRole('button', { name, exact: true })
   }
 
   item(address: string): Locator {

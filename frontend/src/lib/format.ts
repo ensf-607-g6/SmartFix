@@ -1,25 +1,17 @@
 import type { IssueStatus, ReportStatus } from '../api/types'
+import i18n from '../i18n'
 
-export const STATUS_LABEL: Record<IssueStatus, string> = {
-  reported: 'Reported',
-  validated: 'Validated',
-  prioritized: 'Prioritized',
-  assigned: 'Crew assigned',
-  in_progress: 'In progress',
-  completed: 'Repaired',
-  closed: 'Closed',
-  reopened: 'Reopened',
-  escalated: 'Escalated',
-  rejected: 'Rejected',
-  merged: 'Merged',
+/** Look up a key built at run time (e.g. "status.in_progress"); undefined if it is not in the locale files. */
+function lookup(key: string): string | undefined {
+  return i18n.exists(key) ? i18n.t(key as never) : undefined
 }
 
-export const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
-  submitted: 'Checking photo',
-  validated: 'Accepted',
-  duplicate: 'Joined existing report',
-  needs_review: 'Under operator review',
-  rejected: 'Not accepted',
+export function statusLabel(status: IssueStatus): string {
+  return lookup(`status.${status}`) ?? status
+}
+
+export function reportStatusLabel(status: ReportStatus): string {
+  return lookup(`reportStatus.${status}`) ?? status
 }
 
 export const ALL_STATUSES: IssueStatus[] = [
@@ -41,11 +33,15 @@ export function severityColor(severity: number | null | undefined): string {
   return SEVERITY_COLOR[Math.min(5, Math.max(1, severity ?? 1)) - 1]
 }
 
-export const SEVERITY_LABEL = ['', 'Cosmetic', 'Minor', 'Moderate', 'Serious', 'Critical']
+/** "Cosmetic" ... "Critical" for severity 1-5. */
+export function severityLabel(severity: number): string {
+  return lookup(`severity.label${severity}`) ?? ''
+}
 
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString(undefined, {
+  // Dates follow the selected UI language (en / fr), not just the browser's locale.
+  return new Date(iso).toLocaleString(i18n.resolvedLanguage, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -55,13 +51,13 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 export function timeAgo(iso: string): string {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 45) return 'just now'
+  if (s < 45) return i18n.t('time.justNow')
   const m = Math.round(s / 60)
-  if (m < 60) return `${m} min ago`
+  if (m < 60) return i18n.t('time.minutesAgo', { count: m })
   const h = Math.round(m / 60)
-  if (h < 24) return `${h} h ago`
+  if (h < 24) return i18n.t('time.hoursAgo', { count: h })
   const d = Math.round(h / 24)
-  return `${d} day${d === 1 ? '' : 's'} ago`
+  return i18n.t('time.daysAgo', { count: d })
 }
 
 /** "Due in 5 h" / "Overdue by 2 h" */
@@ -69,8 +65,15 @@ export function deadlineText(iso: string): { text: string; overdue: boolean } {
   const ms = new Date(iso).getTime() - Date.now()
   const abs = Math.abs(ms)
   const h = abs / 3_600_000
-  const amount = h < 1 ? `${Math.max(1, Math.round(abs / 60000))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} days`
-  return ms >= 0 ? { text: `Due in ${amount}`, overdue: false } : { text: `Overdue by ${amount}`, overdue: true }
+  const amount =
+    h < 1
+      ? i18n.t('time.minutes', { count: Math.max(1, Math.round(abs / 60000)) })
+      : h < 48
+        ? i18n.t('time.hours', { count: Math.round(h) })
+        : i18n.t('time.days', { count: Math.round(h / 24) })
+  return ms >= 0
+    ? { text: i18n.t('time.dueIn', { amount }), overdue: false }
+    : { text: i18n.t('time.overdueBy', { amount }), overdue: true }
 }
 
 export function pct(value: string | number | null | undefined, digits = 0): string {
@@ -78,11 +81,15 @@ export function pct(value: string | number | null | undefined, digits = 0): stri
   return `${(Number(value) * 100).toFixed(digits)}%`
 }
 
+/** Backend codes (statuses, modules, verdicts, specialties) as words: "in_progress" -> "In progress". */
 export function humanize(code: string): string {
-  return code.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  return lookup(`codes.${code}`) ?? code.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 }
 
 /** Event names like IssueDuplicateDetected -> "Issue duplicate detected" */
 export function eventLabel(name: string): string {
-  return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(\w)(.*)$/, (_, a, b) => a + b.toLowerCase())
+  return (
+    lookup(`events.${name}`) ??
+    name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(\w)(.*)$/, (_, a, b) => a + b.toLowerCase())
+  )
 }

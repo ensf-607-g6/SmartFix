@@ -1,11 +1,13 @@
 import { Camera, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-export function PhotoDropzone({ file, onChange, label = 'Add a photo of the problem' }: {
+export function PhotoDropzone({ file, onChange, label }: {
   file: File | null
   onChange: (file: File | null) => void
   label?: string
 }) {
+  const { t } = useTranslation()
   const input = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -41,13 +43,14 @@ export function PhotoDropzone({ file, onChange, label = 'Add a photo of the prob
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files)} />
       {preview ? (
         <div className="group relative aspect-[4/3]">
-          <img src={preview} alt="Selected" className="h-full w-full object-cover" />
+          <img src={preview} alt={t('photo.selectedAlt')} className="h-full w-full object-cover" />
           <button
             type="button"
             onClick={() => input.current?.click()}
             className="btn absolute bottom-3 right-3 bg-white/95 text-ink-800 shadow-card hover:bg-white"
+            aria-label={t('a11y.replacePhoto')}
           >
-            <RefreshCw className="h-4 w-4" /> Replace
+            <RefreshCw aria-hidden className="h-4 w-4" /> {t('photo.replace')}
           </button>
         </div>
       ) : (
@@ -56,11 +59,11 @@ export function PhotoDropzone({ file, onChange, label = 'Add a photo of the prob
           onClick={() => input.current?.click()}
           className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 text-center"
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-900 text-white">
-            <Camera className="h-6 w-6" />
+          <span aria-hidden className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-900 text-white">
+            <Camera aria-hidden className="h-6 w-6" />
           </span>
-          <span className="text-sm font-semibold text-ink-900">{label}</span>
-          <span className="text-xs text-ink-500">Drag an image here or click to choose · JPG, PNG, up to 15 MB</span>
+          <span className="text-sm font-semibold text-ink-900">{label ?? t('photo.addPhoto')}</span>
+          <span className="text-xs text-ink-500">{t('photo.hint')}</span>
         </button>
       )}
     </div>

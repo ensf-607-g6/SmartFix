@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 const SESSION_KEY = 'smartfix.session'
@@ -48,7 +50,7 @@ function errorMessage(body: unknown, status: number): string {
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, '')
   }
-  return `Request failed (${status})`
+  return i18n.t('common.requestFailed', { status })
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

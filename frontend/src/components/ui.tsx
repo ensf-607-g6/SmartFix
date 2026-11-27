@@ -1,16 +1,19 @@
 import { AlertTriangle, Loader2, X } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { IssueStatus } from '../api/types'
-import { SEVERITY_LABEL, STATUS_LABEL, severityColor } from '../lib/format'
+import { severityColor, severityLabel, statusLabel } from '../lib/format'
 
 export function Spinner({ className = 'h-5 w-5' }: { className?: string }) {
-  return <Loader2 className={`animate-spin text-ink-400 ${className}`} />
+  return <Loader2 aria-hidden className={`animate-spin text-ink-400 ${className}`} />
 }
 
 export function PageLoader() {
+  const { t } = useTranslation()
   return (
-    <div className="flex h-64 items-center justify-center">
+    <div className="flex h-64 items-center justify-center" role="status">
       <Spinner className="h-7 w-7" />
+      <span className="sr-only">{t('a11y.loading')}</span>
     </div>
   )
 }
@@ -30,18 +33,24 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
   return (
     <div className="card flex flex-col items-center px-8 py-14 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-ink-50 text-ink-500">{icon}</div>
-      <h3 className="text-base font-semibold text-ink-900">{title}</h3>
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-ink-50 text-ink-500" aria-hidden>
+        {icon}
+      </div>
+      <h2 className="text-base font-semibold text-ink-900">{title}</h2>
       <p className="mt-1 max-w-sm text-sm text-ink-500">{body}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>
   )
 }
 
+/** Error message, announced by screen readers as soon as it appears. */
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-danger-600/20 bg-danger-50 px-3 py-2 text-sm text-danger-700">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-lg border border-danger-600/20 bg-danger-50 px-3 py-2 text-sm text-danger-700"
+    >
+      <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       <span>{children}</span>
     </div>
   )
@@ -49,6 +58,7 @@ export function ErrorNote({ children }: { children: ReactNode }) {
 
 /** Status badge. Only 'escalated' uses the accent: it is the one state that needs action. */
 export function StatusBadge({ status, escalated }: { status: IssueStatus; escalated?: boolean }) {
+  const { t } = useTranslation()
   const attention = status === 'escalated' || (escalated && !['closed', 'rejected', 'merged'].includes(status))
   const muted = ['closed', 'rejected', 'merged'].includes(status)
   const cls = attention
@@ -60,17 +70,18 @@ export function StatusBadge({ status, escalated }: { status: IssueStatus; escala
         : 'bg-ink-50 text-ink-700 ring-ink-200'
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${cls}`}>
-      {attention && status !== 'escalated' && <AlertTriangle className="h-3 w-3" />}
-      {STATUS_LABEL[status]}
-      {attention && status !== 'escalated' && ' · escalated'}
+      {attention && status !== 'escalated' && <AlertTriangle aria-hidden className="h-3 w-3" />}
+      {statusLabel(status)}
+      {attention && status !== 'escalated' && t('status.escalatedSuffix')}
     </span>
   )
 }
 
 export function SeverityPill({ severity, showLabel = false }: { severity: number | null; showLabel?: boolean }) {
-  if (!severity) return <span className="text-xs text-ink-400">Not rated</span>
+  const { t } = useTranslation()
+  if (!severity) return <span className="text-xs text-ink-500">{t('severity.notRated')}</span>
   return (
-    <span className="inline-flex items-center gap-2 text-xs font-medium text-ink-700" title={`Severity ${severity} of 5`}>
+    <span className="inline-flex items-center gap-2 text-xs font-medium text-ink-700" title={t('severity.title', { severity })}>
       <span className="flex gap-0.5" aria-hidden>
         {[1, 2, 3, 4, 5].map((n) => (
           <span
@@ -80,11 +91,57 @@ export function SeverityPill({ severity, showLabel = false }: { severity: number
           />
         ))}
       </span>
+      <span className="sr-only">{t('a11y.severityPrefix')} </span>
       <span>
-        {severity}/5{showLabel && ` · ${SEVERITY_LABEL[severity]}`}
+        {showLabel ? t('severity.withLabel', { severity, label: severityLabel(severity) }) : t('severity.outOfFive', { severity })}
       </span>
     </span>
   )
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Accessible dialog behaviour: focus moves into the dialog when it opens, Tab and Shift+Tab stay
+ * inside it, Escape closes it, and focus returns to the control that opened it.
+ */
+function useDialog(open: boolean, ref: RefObject<HTMLElement>, onClose: () => void) {
+  const close = useRef(onClose)
+  close.current = onClose
+
+  useEffect(() => {
+    if (!open) return
+    const opener = document.activeElement as HTMLElement | null
+    const items = () =>
+      Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null)
+    ;(items()[0] ?? ref.current)?.focus()
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        close.current()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const all = items()
+      if (!all.length) return
+      const first = all[0]
+      const last = all[all.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [open, ref])
 }
 
 export function Drawer({ open, onClose, title, children, width = 'w-[560px]' }: {
@@ -94,21 +151,28 @@ export function Drawer({ open, onClose, title, children, width = 'w-[560px]' }: 
   children: ReactNode
   width?: string
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  const { t } = useTranslation()
+  const panel = useRef<HTMLElement>(null)
+  const titleId = useId()
+  useDialog(open, panel, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 z-[1500] flex justify-end">
-      <div className="absolute inset-0 bg-ink-950/30" onClick={onClose} />
-      <aside className={`relative flex h-full ${width} flex-col bg-paper-50 shadow-lift`}>
+      <div className="absolute inset-0 bg-ink-950/30" onClick={onClose} aria-hidden />
+      <aside
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`relative flex h-full ${width} flex-col bg-paper-50 shadow-lift`}
+      >
         <header className="flex items-center justify-between border-b border-paper-300 bg-white px-6 py-4">
-          <div className="min-w-0 flex-1">{title}</div>
-          <button onClick={onClose} className="btn-ghost -mr-2 px-2" aria-label="Close">
-            <X className="h-5 w-5" />
+          <div id={titleId} className="min-w-0 flex-1">
+            {title}
+          </div>
+          <button onClick={onClose} className="btn-ghost -mr-2 px-2" aria-label={t('common.close')}>
+            <X aria-hidden className="h-5 w-5" />
           </button>
         </header>
         <div className="flex-1 overflow-y-auto">{children}</div>
@@ -123,15 +187,28 @@ export function Modal({ open, onClose, title, children }: {
   title: string
   children: ReactNode
 }) {
+  const { t } = useTranslation()
+  const panel = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useDialog(open, panel, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 z-[1600] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-ink-950/40" onClick={onClose} />
-      <div className="card relative w-full max-w-lg p-6 shadow-lift">
+      <div className="absolute inset-0 bg-ink-950/40" onClick={onClose} aria-hidden />
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="card relative w-full max-w-lg p-6 shadow-lift"
+      >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="btn-ghost -mr-2 px-2" aria-label="Close">
-            <X className="h-5 w-5" />
+          <h2 id={titleId} className="text-lg font-semibold">
+            {title}
+          </h2>
+          <button onClick={onClose} className="btn-ghost -mr-2 px-2" aria-label={t('common.close')}>
+            <X aria-hidden className="h-5 w-5" />
           </button>
         </div>
         {children}
@@ -159,12 +236,25 @@ export function KeyValue({ label, children }: { label: string; children: ReactNo
 }
 
 export function Photo({ src, alt, className = '' }: { src?: string; alt: string; className?: string }) {
+  const { t } = useTranslation()
   if (!src) {
-    return <div className={`flex items-center justify-center bg-ink-50 text-xs text-ink-400 ${className}`}>No photo</div>
+    return <div className={`flex items-center justify-center bg-ink-50 text-xs text-ink-500 ${className}`}>{t('photo.none')}</div>
   }
   return (
-    <a href={src} target="_blank" rel="noreferrer" className={`block overflow-hidden bg-ink-50 ${className}`}>
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={t('a11y.openFullSize', { alt })}
+      className={`block overflow-hidden bg-ink-50 ${className}`}
+    >
       <img src={src} alt={alt} className="h-full w-full object-cover transition hover:scale-[1.02]" />
     </a>
   )
+}
+
+/** Visually hidden "(opens in a new tab)" for links with target="_blank". */
+export function NewTabHint() {
+  const { t } = useTranslation()
+  return <span className="sr-only"> {t('a11y.opensNewTab')}</span>
 }

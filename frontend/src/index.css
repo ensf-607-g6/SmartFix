@@ -15,6 +15,25 @@
   ::selection {
     @apply bg-accent-200 text-ink-900;
   }
+  /* Keyboard focus is always visible (cards, chips, nav links and map included), never on mouse click. */
+  :focus-visible {
+    outline: 2px solid #f5a524;
+    outline-offset: 2px;
+  }
+  .btn:focus-visible,
+  .input:focus-visible {
+    outline: none; /* these draw their own focus ring */
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -39,7 +58,7 @@
     @apply btn bg-ink-900 text-white hover:bg-ink-800 focus-visible:ring-ink-700;
   }
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500
       focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-100;
   }
   .label {
