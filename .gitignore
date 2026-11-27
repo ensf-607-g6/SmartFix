@@ -18,3 +18,5 @@ frontend/.env
 
 #backend
 backend/.env
+backend/storage/report/*
+backend/storage/after/*
