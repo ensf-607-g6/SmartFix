@@ -12,9 +12,9 @@ export class LoginPage {
 
   constructor(readonly page: Page) {
     this.heading = page.getByRole('heading', { level: 2 })
-    this.fullName = page.getByLabel('Full name')
-    this.email = page.getByLabel('Email')
-    this.password = page.getByLabel('Password')
+    this.fullName = page.getByLabel('Full name', { exact: true })
+    this.email = page.getByLabel('Email', { exact: true })
+    this.password = page.getByLabel('Password', { exact: true })
     this.signInButton = page.locator('form').getByRole('button', { name: 'Sign in', exact: true })
     this.createAccountButton = page.locator('form').getByRole('button', { name: 'Create account', exact: true })
     this.switchToRegister = page.getByRole('button', { name: 'Create an account', exact: true })

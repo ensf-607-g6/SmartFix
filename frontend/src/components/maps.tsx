@@ -1,6 +1,7 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { ACCENT, severityColor } from '../lib/format'
 
@@ -10,20 +11,38 @@ const TILE_URL = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
 
-export function BaseMap({ center = CALGARY, zoom = 12, children, className = 'h-full w-full' }: {
+export function BaseMap({ center = CALGARY, zoom = 12, children, className = 'h-full w-full', label, describedBy }: {
   center?: [number, number]
   zoom?: number
   children?: React.ReactNode
   className?: string
+  /** What the map shows, read by screen readers when the map gets focus. */
+  label?: string
+  /** id of an element that explains how to use the map. */
+  describedBy?: string
 }) {
   return (
     <MapContainer center={center} zoom={zoom} className={className} zoomControl={false} scrollWheelZoom>
+      <MapA11y label={label} describedBy={describedBy} />
       <TileLayer url={TILE_URL} attribution={TILE_ATTR} />
       {/* Bottom-right keeps the zoom buttons clear of the overlays pages put along the top. */}
       <ZoomControl position="bottomright" />
       {children}
     </MapContainer>
   )
+}
+
+/** Names Leaflet's focusable map container for screen readers (react-leaflet does not pass ARIA props through). */
+function MapA11y({ label, describedBy }: { label?: string; describedBy?: string }) {
+  const map = useMap()
+  useEffect(() => {
+    const el = map.getContainer()
+    el.setAttribute('role', 'region')
+    if (label) el.setAttribute('aria-label', label)
+    if (describedBy) el.setAttribute('aria-describedby', describedBy)
+    else el.removeAttribute('aria-describedby')
+  }, [map, label, describedBy])
+  return null
 }
 
 /** Navy teardrop pin for "the place you picked". */
@@ -36,8 +55,16 @@ export const pinIcon = L.divIcon({
   iconAnchor: [17, 43],
 })
 
+/** Click to place the pin; keyboard users focus the map, move it with the arrow keys and press Enter. */
 export function ClickToPlace({ onPick }: { onPick: (lat: number, lng: number) => void }) {
-  useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) })
+  const map = useMapEvents({
+    click: (e) => onPick(e.latlng.lat, e.latlng.lng),
+    keydown: (e) => {
+      if (e.originalEvent.key !== 'Enter') return
+      const c = map.getCenter()
+      onPick(c.lat, c.lng)
+    },
+  })
   return null
 }
 
@@ -104,9 +131,11 @@ export function PlacedPin({ lat, lng }: { lat: number; lng: number }) {
 }
 
 export function SeverityLegend() {
+  const { t } = useTranslation()
+  // A key for the visual markers only; screen-reader users get severity as text in the lists.
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-white/95 px-3 py-2 text-[11px] font-medium text-ink-600 shadow-card">
-      <span>Severity</span>
+    <div className="flex items-center gap-3 rounded-lg bg-white/95 px-3 py-2 text-[11px] font-medium text-ink-600 shadow-card" aria-hidden>
+      <span>{t('severity.legend')}</span>
       {[1, 2, 3, 4, 5].map((s) => (
         <span key={s} className="flex items-center gap-1">
           <span
@@ -118,7 +147,7 @@ export function SeverityLegend() {
       ))}
       <span className="ml-1 flex items-center gap-1">
         <span className="inline-block h-3.5 w-3.5 rounded-full border-[3px]" style={{ borderColor: ACCENT }} />
-        Escalated
+        {t('severity.legendEscalated')}
       </span>
     </div>
   )
