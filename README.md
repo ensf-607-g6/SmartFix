@@ -5,6 +5,8 @@ Residents photograph a pothole, broken streetlight, water leak or cracked sidewa
 A local vision model rates it, duplicates within 50 m are merged, the issue is prioritised, a crew
 is dispatched with a deadline, and the resident confirms (or disputes) the repair.
 
+🚀 Check out the **[Live Demo](https://smart-fix-delta.vercel.app)** to see the project in action!
+
 ## How the code maps to the design
 
 | Design artefact | Code |
@@ -46,6 +48,7 @@ createdb -p 5433 smartfix
 
 ### Windows (Command Prompt)
 ```bash
+git clone https://github.com/ensf-607-g6/SmartFix
 cd backend
 python -m venv .venv
 .venv\Scripts\activate.bat
@@ -58,6 +61,7 @@ python -m scripts.init_db # schema v2 + Calgary service areas, crews, demo users
 
 ### Linux and macOS
 ```bash
+git clone https://github.com/ensf-607-g6/SmartFix
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
