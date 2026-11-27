@@ -44,7 +44,9 @@ test.describe('Operator live map (FR-13)', () => {
 
     await map.chip(PROBLEM_TYPES.water_leak).click()
 
-    await expect.poll(() => map.shown()).toBeLessThan(total)
+    // While the filtered query loads the list is briefly empty; wait for the filtered results.
+    await expect.poll(async () => { const n = await map.shown(); return n > 0 && n < total }).toBe(true)
+    await expect(map.queue.first()).toContainText(PROBLEM_TYPES.water_leak)
     const texts = await map.queue.allInnerTexts()
     expect(texts.length).toBeGreaterThan(0)
     for (const t of texts) expect(t).toContain(PROBLEM_TYPES.water_leak)

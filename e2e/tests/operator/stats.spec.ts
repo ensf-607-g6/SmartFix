@@ -17,7 +17,8 @@ test.describe('Repair statistics (FR-15)', () => {
     await expect(row).toBeVisible()
     await expect(row).toContainText(/\d+\.\d h/)
     await row.hover()
-    await expect(byType.getByText(new RegExp(`${before + 1} repairs? · \\d+% met deadline`))).toBeVisible()
+    // The hover tooltip (screen readers get the same detail as hidden text in the row).
+    await expect(row.locator('span.pointer-events-none')).toHaveText(new RegExp(`${before + 1} repairs? · \\d+% met deadline`))
 
     await expect(stats.tile('Average repair time')).not.toContainText('—')
     await expect(stats.tile('Met deadline')).toContainText('%')

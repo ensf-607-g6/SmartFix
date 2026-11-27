@@ -18,7 +18,7 @@ export default {
           200: '#C9D2E2',
           300: '#A5B3CC',
           400: '#8FA3C4',
-          500: '#6380AD',
+          500: '#4F6B98', // darkened from #6380AD so secondary text meets WCAG AA (4.5:1) on every light surface
           600: '#3F5C8C',
           700: '#263F6A',
           800: '#1A2C4D',

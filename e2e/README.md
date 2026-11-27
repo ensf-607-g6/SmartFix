@@ -99,7 +99,11 @@ e2e/
     ├── operator/             review queue, live map, issue drawer, stats, supervisor
     │                                                             TC-020..028, 037, 038, 041, 042
     ├── notifications/        bell, live toasts, mark read        TC-039, 040, FR-12
-    └── system/               health, full UI lifecycle           TC-043
+    ├── system/               health, full UI lifecycle           TC-043
+    ├── i18n/                 French translation (?lng=fr, browser language)
+    └── a11y/                 axe-core WCAG 2.1 AA scans of every screen (en + fr), plus keyboard
+                              and screen-reader checks: skip link, dialogs, map pin by keyboard,
+                              toggle states, alerts, page titles
 ```
 
 ## Known failures (marked `test.fail`)

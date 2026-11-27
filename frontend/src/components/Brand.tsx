@@ -1,4 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 export function Brand({ dark = false }: { dark?: boolean }) {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center gap-2.5">
       <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${dark ? 'bg-white/10' : 'bg-ink-900'}`}>
@@ -15,7 +18,7 @@ export function Brand({ dark = false }: { dark?: boolean }) {
       </span>
       <div className="leading-tight">
         <p className={`text-lg font-bold tracking-tight ${dark ? 'text-white' : 'text-ink-900'}`}>SmartFix</p>
-        <p className={`text-[11px] font-medium ${dark ? 'text-ink-300' : 'text-ink-500'}`}>Public infrastructure</p>
+        <p className={`text-[11px] font-medium ${dark ? 'text-ink-300' : 'text-ink-500'}`}>{t('brand.tagline')}</p>
       </div>
     </div>
   )

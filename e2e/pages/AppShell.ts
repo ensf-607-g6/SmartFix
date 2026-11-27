@@ -23,7 +23,7 @@ export class AppShell {
   }
 
   navLabels(): Promise<string[]> {
-    return this.sidebar.locator('nav a').allInnerTexts().then((all) => all.map((t) => t.replace(/\s*\d+$/, '').trim()))
+    return this.sidebar.locator('nav a span.flex-1').allInnerTexts().then((all) => all.map((t) => t.trim()))
   }
 
   async unreadCount(): Promise<number> {

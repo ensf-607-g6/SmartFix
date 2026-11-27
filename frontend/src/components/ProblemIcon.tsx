@@ -10,5 +10,5 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
 
 export function ProblemIcon({ code, ...props }: { code: string } & LucideProps) {
   const Icon = ICONS[code] ?? Wrench
-  return <Icon {...props} />
+  return <Icon aria-hidden {...props} />
 }
